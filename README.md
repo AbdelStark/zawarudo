@@ -22,6 +22,21 @@ make demo-down       # stop + clean volumes
 What happens: the backend starts, becomes healthy, then the one-shot **client** runs a
 `metadata → score → plan` cycle against it and writes a result page to `.artifacts/demo/demo.html`.
 
+### Without docker (backend + client only)
+
+No compose, no monitoring stack — just the backend (uvicorn) + the client, end to end:
+
+```bash
+make demo-local                       # mock backend (no weights)
+make demo-local BACKEND=lewm          # real checkpoint on CPU (needs the model package)
+# or call the script directly for more options:
+./scripts/run_demo_local.sh --backend lewm --candidates 16 --horizon 8 --out demo.html
+```
+
+The script starts the backend, waits for `/readyz`, runs `python -m client.demo`, writes an HTML
+view, and stops the backend (use `--keep` to leave it running). For `lewm` it needs the model
+package at `.artifacts/model-package/lewm-pusht` (see below).
+
 | Service | URL | Notes |
 |---|---|---|
 | WMCP API | http://localhost:8080 | `/readyz`, `/metrics`, `/wmcp/v1/models/lewm-pusht:{score,plan,...}` |
