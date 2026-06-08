@@ -1,9 +1,9 @@
-# wmcp-jepa-serve
+# Za Warudo
 
-**Production HTTP serving for action-conditioned JEPA world models.**
+**HTTP serving for action-conditioned JEPA world models.**
 
 Serve a Push-T [LeWorldModel](https://huggingface.co/quentinll/lewm-pusht) checkpoint behind a typed,
-WMCP-aligned API — `encode`, `rollout`, `score`, `plan` — with first-class Prometheus metrics and
+WMCP-aligned API (`encode`, `rollout`, `score`, `plan`) with first-class Prometheus metrics and
 OpenTelemetry traces. Swap the real PyTorch checkpoint for a zero-dependency mock with one env var.
 CPU or GPU. One command to a running demo.
 
@@ -18,13 +18,13 @@ CPU or GPU. One command to a running demo.
 ## Quickstart
 
 ```bash
-make demo-local                 # backend + client, end to end — mock, no weights, runs anywhere
+make demo-local                 # backend + client, end to end (mock, no weights)
 make demo-local BACKEND=lewm    # the real Push-T checkpoint on CPU
 make demo                       # full stack: client + backend + Prometheus + OTel + Grafana
 ```
 
 `make demo-local` boots the API, runs a `metadata → score → plan` cycle against it, and writes an
-HTML view — no Docker required.
+HTML view. No Docker required.
 
 ## Install
 
@@ -46,7 +46,7 @@ Base path `/wmcp/v1`. Every request is a typed envelope; tensors travel as a `Te
 | `POST /wmcp/v1/models/{id}:rollout` | rollout | predicted latents `[B,S,T,192]` |
 | `POST /wmcp/v1/models/{id}:score` | score | goal-conditioned costs `[B,S]` + `best_index` |
 | `POST /wmcp/v1/models/{id}:plan` | plan | CEM/MPC plan `[B,T,10]` + first action `[B,10]` |
-| `GET  /healthz` · `/readyz` · `/metrics` | — | liveness · readiness · Prometheus |
+| `GET  /healthz` · `/readyz` · `/metrics` | system | liveness · readiness · Prometheus |
 | `POST /v2/models/{name}/infer` | KServe V2 | Open Inference Protocol adapter |
 
 ```bash
@@ -68,7 +68,7 @@ Errors return `{detail: {code, message}}` with `INVALID_ARGUMENT` (422), `MODEL_
 
 The runtime lives behind a `WorldModelBackend` protocol, so the API never changes when the engine
 does. The model is **vendored** (no Hydra/gym/pygame research stack) and loads only from a trusted,
-checksum-verified package — never from a request payload.
+checksum-verified package, never from a request payload.
 
 ```bash
 # build a safetensors package from the HF checkpoint, then serve it
@@ -90,7 +90,7 @@ Every operation is measured and traced.
 - **Traces**: OTel spans `wmcp.request → validate → preprocess → model.{score,rollout,plan} → serialize`,
   exported over OTLP.
 
-`make demo` provisions Grafana at `:3000` with Prometheus + Tempo datasources and a live dashboard —
+`make demo` provisions Grafana at `:3000` with Prometheus + Tempo datasources and a live dashboard:
 metrics and per-request traces with zero manual setup.
 
 ## Benchmark
@@ -112,7 +112,7 @@ reporting p50/p90/p95/p99, throughput, and error rate with full run context. Rep
 | `WMCP_BACKEND` | `mock` | `mock` \| `lewm` |
 | `WMCP_MODEL_PACKAGE` | `/models/lewm-pusht` | package dir (lewm backend) |
 | `WMCP_HF_DEVICE` | `cpu` | `cpu` \| `cuda` |
-| `WMCP_OTEL_EXPORTER_OTLP_ENDPOINT` | — | OTLP gRPC collector endpoint |
+| `WMCP_OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP gRPC collector endpoint |
 | `WMCP_ENABLE_PROMETHEUS` | `true` | gate `/metrics` |
 | `WMCP_LOG_LEVEL` | `INFO` | structured JSON log level |
 
