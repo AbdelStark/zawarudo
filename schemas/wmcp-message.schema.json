@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wmcp.dev/schemas/wmcp-message.schema.json",
+  "title": "WMCP World Model Message",
+  "type": "object",
+  "required": [
+    "wmcp_version",
+    "request_id",
+    "operation",
+    "model",
+    "inputs"
+  ],
+  "properties": {
+    "wmcp_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "operation": {
+      "type": "string",
+      "enum": [
+        "metadata",
+        "encode",
+        "predict",
+        "rollout",
+        "score",
+        "plan"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_revision": {
+      "type": "string"
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "traceparent": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "return_options": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "tensor": {
+      "type": "object",
+      "required": [
+        "kind",
+        "encoding",
+        "dtype",
+        "shape",
+        "layout"
+      ],
+      "properties": {
+        "kind": {
+          "const": "tensor"
+        },
+        "encoding": {
+          "enum": [
+            "inline",
+            "base64",
+            "uri"
+          ]
+        },
+        "dtype": {
+          "enum": [
+            "uint8",
+            "float16",
+            "float32",
+            "float64",
+            "int32",
+            "int64"
+          ]
+        },
+        "shape": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "layout": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array"
+        },
+        "data_b64": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "encoding": {
+                "const": "inline"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "data"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "encoding": {
+                "const": "base64"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "data_b64"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "encoding": {
+                "const": "uri"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "uri"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

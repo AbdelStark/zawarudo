@@ -1,0 +1,37 @@
+{
+  "model_id": "lewm-pusht",
+  "model_revision": "hf:quentinll/lewm-pusht:<pin-revision>",
+  "model_family": "jepa",
+  "model_type": "action_conditioned_world_model",
+  "task": "pusht",
+  "source_repository": "https://github.com/lucas-maes/le-wm",
+  "artifact_uri": "hf://quentinll/lewm-pusht",
+  "supported_operations": [
+    "metadata",
+    "encode",
+    "predict",
+    "rollout",
+    "score",
+    "plan"
+  ],
+  "input_shapes": {
+    "observation_history": "B,H,C,224,224 or B,H,224,224,C",
+    "action_candidates": "B,S,T,10",
+    "goal": "B,G,C,224,224 or B,G,224,224,C"
+  },
+  "latent_space": {
+    "dimension": 192,
+    "dtype": "float32"
+  },
+  "limits": {
+    "max_batch": 8,
+    "max_candidates": 1024,
+    "max_horizon": 64,
+    "max_planner_iterations": 10
+  },
+  "runtime": {
+    "backend": "ray-pytorch",
+    "device": "cuda",
+    "dynamic_batching": true
+  }
+}

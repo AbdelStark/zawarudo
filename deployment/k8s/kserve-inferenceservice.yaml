@@ -1,0 +1,28 @@
+# Optional KServe deployment once the container implements the KServe V2 adapter.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: lewm-pusht
+spec:
+  predictor:
+    containers:
+      - name: wmcp-jepa-service
+        image: ghcr.io/your-org/wmcp-jepa-service:latest
+        ports:
+          - containerPort: 8080
+        env:
+          - name: WMCP_MODEL_ID
+            value: lewm-pusht
+          - name: WMCP_BACKEND
+            value: ray-pytorch
+          - name: WMCP_MODEL_PACKAGE_URI
+            value: s3://your-model-bucket/lewm-pusht/model-package/
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+            cpu: "4"
+            memory: 16Gi
+          requests:
+            nvidia.com/gpu: "1"
+            cpu: "2"
+            memory: 8Gi

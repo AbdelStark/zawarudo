@@ -1,0 +1,334 @@
+openapi: 3.1.0
+info:
+  title: WMCP-JEPA Serve API
+  version: 0.1.0
+  description: WMCP-aligned API for JEPA/action-conditioned world-model inference.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Service process is alive.
+  /readyz:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Model is loaded and ready.
+        '503':
+          description: Model is not ready.
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Prometheus metrics text format.
+  /wmcp/v1/models:
+    get:
+      summary: List served world models
+      responses:
+        '200':
+          description: Model list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelMetadata'
+  /wmcp/v1/models/{model_id}:
+    get:
+      summary: Get model metadata
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Model metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelMetadata'
+        '404':
+          description: Model not found.
+  /wmcp/v1/models/{model_id}:encode:
+    post:
+      summary: Encode observation or goal pixels into model latents
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncodeRequest'
+      responses:
+        '200':
+          description: Encoded latents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncodeResponse'
+  /wmcp/v1/models/{model_id}:predict:
+    post:
+      summary: Predict next latent from latent/action context
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictRequest'
+      responses:
+        '200':
+          description: Predicted latents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictResponse'
+  /wmcp/v1/models/{model_id}:rollout:
+    post:
+      summary: Roll out candidate action futures
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolloutRequest'
+      responses:
+        '200':
+          description: Predicted future latents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolloutResponse'
+  /wmcp/v1/models/{model_id}:score:
+    post:
+      summary: Score candidate action sequences against a goal
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreRequest'
+      responses:
+        '200':
+          description: Candidate costs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
+  /wmcp/v1/models/{model_id}:plan:
+    post:
+      summary: Plan with model-predictive control
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanRequest'
+      responses:
+        '200':
+          description: Planned action sequence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+  /v2/models/{model_name}/infer:
+    post:
+      summary: Optional KServe V2-compatible adapter
+      parameters:
+        - name: model_name
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: KServe-style inference response.
+components:
+  schemas:
+    Tensor:
+      type: object
+      required: [kind, encoding, dtype, shape, layout]
+      properties:
+        kind:
+          const: tensor
+        encoding:
+          enum: [inline, base64, uri]
+        dtype:
+          enum: [uint8, float16, float32, float64, int32, int64]
+        shape:
+          type: array
+          items: {type: integer, minimum: 0}
+        layout:
+          type: string
+        data:
+          type: array
+          items: {}
+        data_b64:
+          type: string
+        uri:
+          type: string
+        sha256:
+          type: string
+    Observation:
+      type: object
+      required: [modality, tensor]
+      properties:
+        modality:
+          enum: [rgb, depth, state, proprioception, latent]
+        tensor:
+          $ref: '#/components/schemas/Tensor'
+        preprocessing:
+          type: object
+          additionalProperties: true
+    ActionTensor:
+      type: object
+      required: [space, tensor]
+      properties:
+        space:
+          enum: [continuous, discrete, hybrid]
+        tensor:
+          $ref: '#/components/schemas/Tensor'
+        normalization:
+          type: string
+        bounds:
+          type: object
+          properties:
+            low:
+              type: array
+              items: {type: number}
+            high:
+              type: array
+              items: {type: number}
+    RequestEnvelope:
+      type: object
+      required: [wmcp_version, request_id, operation, model, inputs]
+      properties:
+        wmcp_version: {type: string}
+        request_id: {type: string}
+        operation: {type: string}
+        model: {type: string}
+        model_revision: {type: string}
+        trace:
+          type: object
+          properties:
+            traceparent: {type: string}
+        inputs:
+          type: object
+        parameters:
+          type: object
+          additionalProperties: true
+        return_options:
+          type: object
+          additionalProperties: true
+    ResponseEnvelope:
+      type: object
+      required: [wmcp_version, request_id, operation, model, outputs]
+      properties:
+        wmcp_version: {type: string}
+        request_id: {type: string}
+        operation: {type: string}
+        model: {type: string}
+        model_revision: {type: string}
+        outputs: {type: object}
+        diagnostics: {type: object}
+    EncodeRequest:
+      allOf:
+        - $ref: '#/components/schemas/RequestEnvelope'
+        - type: object
+          properties:
+            inputs:
+              type: object
+              properties:
+                observation:
+                  $ref: '#/components/schemas/Observation'
+    EncodeResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+    PredictRequest:
+      allOf:
+        - $ref: '#/components/schemas/RequestEnvelope'
+    PredictResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+    RolloutRequest:
+      allOf:
+        - $ref: '#/components/schemas/RequestEnvelope'
+        - type: object
+          properties:
+            inputs:
+              type: object
+              properties:
+                observation_history:
+                  $ref: '#/components/schemas/Observation'
+                action_candidates:
+                  $ref: '#/components/schemas/ActionTensor'
+    RolloutResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+    ScoreRequest:
+      allOf:
+        - $ref: '#/components/schemas/RolloutRequest'
+    ScoreResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+    PlanRequest:
+      allOf:
+        - $ref: '#/components/schemas/RequestEnvelope'
+    PlanResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+    ModelMetadata:
+      type: object
+      required: [model_id, model_family, model_type, supported_operations]
+      properties:
+        model_id: {type: string}
+        model_revision: {type: string}
+        model_family: {type: string}
+        model_type: {type: string}
+        task: {type: string}
+        supported_operations:
+          type: array
+          items: {type: string}
+        input_shapes:
+          type: object
+          additionalProperties: true
+        limits:
+          type: object
+          additionalProperties: true

@@ -1,0 +1,64 @@
+{
+  "wmcp_version": "0.1",
+  "request_id": "demo-rollout-0001",
+  "operation": "rollout",
+  "model": "lewm-pusht",
+  "model_revision": "hf:quentinll/lewm-pusht:<pin-revision>",
+  "trace": {
+    "traceparent": "00-00000000000000000000000000000001-0000000000000001-01"
+  },
+  "inputs": {
+    "observation_history": {
+      "modality": "rgb",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "uint8",
+        "shape": [
+          1,
+          3,
+          224,
+          224,
+          3
+        ],
+        "layout": "B,H,Height,Width,C",
+        "uri": "s3://wmcp-demo/requests/demo-rollout-0001/history.npy",
+        "sha256": "<sha256>"
+      },
+      "preprocessing": {
+        "resize": [
+          224,
+          224
+        ],
+        "normalization": "model_default"
+      }
+    },
+    "action_candidates": {
+      "space": "continuous",
+      "normalization": "model_default",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "float32",
+        "shape": [
+          1,
+          256,
+          16,
+          10
+        ],
+        "layout": "B,S,T,A",
+        "uri": "s3://wmcp-demo/requests/demo-rollout-0001/actions.npy",
+        "sha256": "<sha256>"
+      }
+    }
+  },
+  "parameters": {
+    "history_size": 3,
+    "horizon": 16
+  },
+  "return_options": {
+    "include_predicted_latents": true,
+    "latent_encoding": "uri",
+    "include_diagnostics": true
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wmcp.dev/schemas/model-manifest.schema.json",
+  "title": "WMCP World Model Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "model_id",
+    "model_family",
+    "model_type",
+    "source_repository",
+    "artifact_uri",
+    "framework",
+    "runtime",
+    "supported_operations",
+    "inputs",
+    "outputs",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "model_id": {
+      "type": "string"
+    },
+    "model_family": {
+      "type": "string"
+    },
+    "model_type": {
+      "type": "string"
+    },
+    "task": {
+      "type": "string"
+    },
+    "source_repository": {
+      "type": "string"
+    },
+    "source_revision": {
+      "type": "string"
+    },
+    "artifact_uri": {
+      "type": "string"
+    },
+    "artifact_revision": {
+      "type": "string"
+    },
+    "artifact_sha256": {
+      "type": "string"
+    },
+    "framework": {
+      "type": "string"
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "backend"
+      ],
+      "properties": {
+        "backend": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "python": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "supported_operations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "preprocessing": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "action_space": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "latent_space": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

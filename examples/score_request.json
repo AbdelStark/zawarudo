@@ -1,0 +1,70 @@
+{
+  "wmcp_version": "0.1",
+  "request_id": "demo-score-0001",
+  "operation": "score",
+  "model": "lewm-pusht",
+  "model_revision": "hf:quentinll/lewm-pusht:<pin-revision>",
+  "inputs": {
+    "observation_history": {
+      "modality": "rgb",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "uint8",
+        "shape": [
+          1,
+          3,
+          224,
+          224,
+          3
+        ],
+        "layout": "B,H,Height,Width,C",
+        "uri": "s3://wmcp-demo/history.npy"
+      }
+    },
+    "goal": {
+      "modality": "rgb",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "uint8",
+        "shape": [
+          1,
+          1,
+          224,
+          224,
+          3
+        ],
+        "layout": "B,G,Height,Width,C",
+        "uri": "s3://wmcp-demo/goal.npy"
+      }
+    },
+    "action_candidates": {
+      "space": "continuous",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "float32",
+        "shape": [
+          1,
+          256,
+          16,
+          10
+        ],
+        "layout": "B,S,T,A",
+        "uri": "s3://wmcp-demo/actions.npy"
+      }
+    }
+  },
+  "parameters": {
+    "history_size": 3,
+    "horizon": 16,
+    "cost": "goal_latent_mse"
+  },
+  "return_options": {
+    "include_candidate_costs": true,
+    "include_best_index": true,
+    "include_predicted_latents": false,
+    "include_diagnostics": true
+  }
+}

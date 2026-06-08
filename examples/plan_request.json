@@ -1,0 +1,81 @@
+{
+  "wmcp_version": "0.1",
+  "request_id": "demo-plan-0001",
+  "operation": "plan",
+  "model": "lewm-pusht",
+  "model_revision": "hf:quentinll/lewm-pusht:<pin-revision>",
+  "inputs": {
+    "observation_history": {
+      "modality": "rgb",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "uint8",
+        "shape": [
+          1,
+          3,
+          224,
+          224,
+          3
+        ],
+        "layout": "B,H,Height,Width,C",
+        "uri": "s3://wmcp-demo/history.npy"
+      }
+    },
+    "goal": {
+      "modality": "rgb",
+      "tensor": {
+        "kind": "tensor",
+        "encoding": "uri",
+        "dtype": "uint8",
+        "shape": [
+          1,
+          1,
+          224,
+          224,
+          3
+        ],
+        "layout": "B,G,Height,Width,C",
+        "uri": "s3://wmcp-demo/goal.npy"
+      }
+    }
+  },
+  "parameters": {
+    "planner": "cem",
+    "horizon": 16,
+    "iterations": 5,
+    "candidates": 256,
+    "elite_fraction": 0.1,
+    "seed": 1234,
+    "action_bounds": {
+      "low": [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "high": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  "return_options": {
+    "include_diagnostics": true,
+    "include_candidate_summary": true
+  }
+}

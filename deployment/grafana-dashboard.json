@@ -1,0 +1,97 @@
+{
+  "title": "WMCP-JEPA Serve",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Request rate",
+      "targets": [
+        {
+          "expr": "sum(rate(wmcp_requests_total[5m])) by (operation,status)"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 latency",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Model compute p95",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le, operation))"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue wait p95",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket[5m])) by (le, operation))"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Candidate count",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_candidate_count_bucket[5m])) by (le, operation))"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Model loaded",
+      "targets": [
+        {
+          "expr": "max(wmcp_model_loaded)"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 6,
+        "h": 4
+      }
+    }
+  ]
+}

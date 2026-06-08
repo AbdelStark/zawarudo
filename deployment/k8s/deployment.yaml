@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wmcp-jepa-service
+  labels:
+    app: wmcp-jepa-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wmcp-jepa-service
+  template:
+    metadata:
+      labels:
+        app: wmcp-jepa-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: service
+          image: ghcr.io/your-org/wmcp-jepa-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WMCP_MODEL_ID
+              value: lewm-pusht
+            - name: WMCP_BACKEND
+              value: ray-pytorch
+            - name: WMCP_MODEL_PACKAGE_URI
+              value: s3://your-model-bucket/lewm-pusht/model-package/
+            - name: WMCP_OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability:4317
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+              cpu: "4"
+              memory: 16Gi
+            requests:
+              nvidia.com/gpu: "1"
+              cpu: "2"
+              memory: 8Gi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wmcp-jepa-service
+spec:
+  selector:
+    app: wmcp-jepa-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
