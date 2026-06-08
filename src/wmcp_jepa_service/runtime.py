@@ -5,8 +5,9 @@ import random
 import time
 from typing import Any, Dict, Protocol
 
+from . import telemetry
 from .schemas import ModelMetadata, RequestEnvelope, ResponseEnvelope
-from .observability import MODEL_COMPUTE, MODEL_LOADED
+from .observability import MODEL_COMPUTE, MODEL_LOADED, PLANNER_ITERATIONS
 
 
 class WorldModelBackend(Protocol):
@@ -54,7 +55,8 @@ class MockWorldModelBackend:
 
     async def encode(self, request: RequestEnvelope) -> ResponseEnvelope:
         start = time.perf_counter()
-        await asyncio.sleep(0.002)
+        with telemetry.span("wmcp.model.encode"):
+            await asyncio.sleep(0.002)
         MODEL_COMPUTE.labels(self.model_id, "encode", self.backend).observe(time.perf_counter() - start)
         return ResponseEnvelope(
             request_id=request.request_id,
@@ -78,9 +80,11 @@ class MockWorldModelBackend:
         return await self.encode(request)
 
     async def rollout(self, request: RequestEnvelope) -> ResponseEnvelope:
-        b, s, t, _a = self._shape_from_action_candidates(request)
+        with telemetry.span("wmcp.preprocess", **{"wmcp.operation": "rollout"}):
+            b, s, t, _a = self._shape_from_action_candidates(request)
         start = time.perf_counter()
-        await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
+        with telemetry.span("wmcp.model.rollout", **{"wmcp.candidate_count": s, "wmcp.horizon": t}):
+            await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
         MODEL_COMPUTE.labels(self.model_id, "rollout", self.backend).observe(time.perf_counter() - start)
         return ResponseEnvelope(
             request_id=request.request_id,
@@ -101,13 +105,15 @@ class MockWorldModelBackend:
         )
 
     async def score(self, request: RequestEnvelope) -> ResponseEnvelope:
-        b, s, t, _a = self._shape_from_action_candidates(request)
+        with telemetry.span("wmcp.preprocess", **{"wmcp.operation": "score"}):
+            b, s, t, _a = self._shape_from_action_candidates(request)
         start = time.perf_counter()
-        await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
+        with telemetry.span("wmcp.model.score", **{"wmcp.candidate_count": s, "wmcp.horizon": t}):
+            await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
+            rng = random.Random(request.parameters.get("seed", 0))
+            costs = [[rng.random() for _ in range(s)] for _ in range(b)]
+            best = [min(range(s), key=lambda i: costs[row][i]) for row in range(b)]
         MODEL_COMPUTE.labels(self.model_id, "score", self.backend).observe(time.perf_counter() - start)
-        rng = random.Random(request.parameters.get("seed", 0))
-        costs = [[rng.random() for _ in range(s)] for _ in range(b)]
-        best = [min(range(s), key=lambda i: costs[row][i]) for row in range(b)]
         return ResponseEnvelope(
             request_id=request.request_id,
             operation="score",
@@ -127,9 +133,13 @@ class MockWorldModelBackend:
         horizon = int(params.get("horizon", 16))
         action_dim = 10
         iterations = int(params.get("iterations", 5))
-        rng = random.Random(params.get("seed", 0))
-        best_cost_by_iteration = [1.0 / (i + 1) for i in range(iterations)]
-        sequence = [[[rng.uniform(-1, 1) for _ in range(action_dim)] for _ in range(horizon)] for _ in range(b)]
+        start = time.perf_counter()
+        with telemetry.span("wmcp.model.plan", **{"wmcp.planner_iterations": iterations, "wmcp.horizon": horizon}):
+            rng = random.Random(params.get("seed", 0))
+            best_cost_by_iteration = [1.0 / (i + 1) for i in range(iterations)]
+            sequence = [[[rng.uniform(-1, 1) for _ in range(action_dim)] for _ in range(horizon)] for _ in range(b)]
+        MODEL_COMPUTE.labels(self.model_id, "plan", self.backend).observe(time.perf_counter() - start)
+        PLANNER_ITERATIONS.labels(self.model_id, "plan").observe(iterations)
         return ResponseEnvelope(
             request_id=request.request_id,
             operation="plan",

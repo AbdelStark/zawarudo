@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import time
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Any, Iterator
 
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -38,6 +39,12 @@ ROLLOUT_HORIZON = Histogram(
     ["model", "operation"],
     buckets=(1, 2, 4, 8, 16, 32, 64, 128),
 )
+PLANNER_ITERATIONS = Histogram(
+    "wmcp_planner_iterations",
+    "Planner iterations per plan request",
+    ["model", "operation"],
+    buckets=(1, 2, 3, 5, 8, 10, 15, 20, 30, 50),
+)
 MODEL_LOADED = Gauge(
     "wmcp_model_loaded",
     "Whether the model is loaded",
@@ -48,6 +55,32 @@ VALIDATION_ERRORS = Counter(
     "Input validation errors",
     ["operation", "code"],
 )
+
+# Optional GPU metrics — populated best-effort when torch + CUDA are available (RFC-0005).
+GPU_AVAILABLE = Gauge(
+    "wmcp_gpu_available",
+    "1 if a CUDA device is available",
+    ["device"],
+)
+GPU_MEMORY_USED = Gauge(
+    "wmcp_gpu_memory_used_bytes",
+    "GPU memory currently allocated by torch",
+    ["device"],
+)
+
+
+def update_gpu_metrics() -> None:
+    """Refresh GPU gauges if torch+CUDA are present; a no-op otherwise (never raises)."""
+    try:
+        torch: Any = importlib.import_module("torch")  # optional dependency
+        if not torch.cuda.is_available():
+            return
+        for index in range(torch.cuda.device_count()):
+            device = f"cuda:{index}"
+            GPU_AVAILABLE.labels(device).set(1)
+            GPU_MEMORY_USED.labels(device).set(float(torch.cuda.memory_allocated(index)))
+    except Exception:  # noqa: BLE001 - metrics must never break the request path
+        return
 
 
 @contextmanager
