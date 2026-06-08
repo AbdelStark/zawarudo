@@ -1,0 +1,26 @@
+{
+  "description": "Golden costs for the real quentinll/lewm-pusht checkpoint (rev 22b330c). Reproducible from the build_model_package real package; the vendored model loads the checkpoint strict=True (== upstream).",
+  "seed": 42,
+  "B": 1,
+  "S": 8,
+  "T": 6,
+  "H": 1,
+  "atol": 0.001,
+  "rtol": 0.0001,
+  "model_revision": "22b330c28c27ead4bfd1888615af1340e3fe9052",
+  "expected_costs": [
+    [
+      25.802169799804688,
+      24.10658073425293,
+      20.120956420898438,
+      34.317352294921875,
+      36.159202575683594,
+      19.414321899414062,
+      20.58356475830078,
+      31.400859832763672
+    ]
+  ],
+  "expected_best_index": [
+    5
+  ]
+}
