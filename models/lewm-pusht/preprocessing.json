@@ -1,0 +1,24 @@
+{
+  "channels": 3,
+  "dtype": "float32",
+  "history_size": 3,
+  "image_size": 224,
+  "layout": "B,H,C,224,224",
+  "normalize": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "note": "Placeholder ImageNet normalization; confirm against upstream LeWorldModel preprocessing.",
+  "resize": [
+    224,
+    224
+  ]
+}

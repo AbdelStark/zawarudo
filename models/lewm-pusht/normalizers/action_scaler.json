@@ -1,0 +1,31 @@
+{
+  "action_dim": 10,
+  "bounds": {
+    "high": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "low": [
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "kind": "identity",
+  "note": "Identity scaling assumed; confirm the upstream action scaler (RFC-0005 open issue #1)."
+}
