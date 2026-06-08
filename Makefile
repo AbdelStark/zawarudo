@@ -1,4 +1,4 @@
-.PHONY: install test run docker-build compose-up compose-down package package-verify bench demo demo-gpu demo-lewm demo-down
+.PHONY: install test run docker-build compose-up compose-down package package-verify bench demo demo-local demo-gpu demo-lewm demo-down
 
 install:
 	pip install -e .[dev]
@@ -26,6 +26,10 @@ compose-up:
 
 compose-down:
 	cd deployment && docker compose down
+
+# End-to-end demo WITHOUT docker (backend + client only). BACKEND=mock|lewm (default mock).
+demo-local:
+	./scripts/run_demo_local.sh --backend $(or $(BACKEND),mock)
 
 # One-command demo: client + backend + monitoring (mock backend by default).
 demo:
