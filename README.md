@@ -28,14 +28,22 @@ What happens: the backend starts, becomes healthy, then the one-shot **client** 
 | Prometheus | http://localhost:9090 | scrapes the service `/metrics` |
 | Grafana | http://localhost:3000 | `admin` / `admin`; dashboards auto-provisioned |
 
-By default the backend runs the **mock** runtime (no weights needed). To serve the real Push-T
-checkpoint on CPU or GPU, build the model package and switch the backend:
+By default the backend runs the **mock** runtime (no weights needed). To serve the **real** Push-T
+checkpoint (`quentinll/lewm-pusht`) on CPU, build the model package and use the lewm overlay:
 
 ```bash
-make package                                  # build a model package (see models/lewm-pusht/README.md)
-cp .env.example .env                          # then set HF_TOKEN + WMCP_BACKEND=lewm
-WMCP_BACKEND=lewm make demo
+cp .env.example .env                          # set HF_TOKEN
+python scripts/pin_sources.py --package models/lewm-pusht
+python scripts/build_model_package.py real \
+    --source <hf-download-dir> --out .artifacts/model-package/lewm-pusht
+make demo-lewm                                # client + real backend + monitoring (CPU)
+# make demo-gpu                               # NVIDIA GPU reservation
 ```
+
+`make demo-lewm` builds the backend image with the `lewm` extra (torch + transformers), mounts the
+checkpoint package read-only, and the client drives `score`/`plan` against the **real** model. See
+[`docs/demo-acceptance.md`](docs/demo-acceptance.md) for the RFC-0005 conformance run log and the
+**known limitations** (synthetic observations, CPU latency, identity action scaler).
 
 ### Monitoring (Grafana + traces)
 

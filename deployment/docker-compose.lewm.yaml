@@ -1,0 +1,19 @@
+# Real LeWorldModel overlay — serves the actual quentinll/lewm-pusht checkpoint (CPU by default).
+#
+#   make package   # build the model package into .artifacts/model-package/lewm-pusht first
+#   make demo-lewm # docker compose -f docker-compose.yaml -f docker-compose.lewm.yaml up --build
+#
+# The backend image is built with the `lewm` extra (torch + transformers); the model package is
+# mounted read-only at /models/lewm-pusht (override the host dir with WMCP_MODEL_PACKAGE_DIR).
+services:
+  wmcp-jepa-service:
+    build:
+      args:
+        EXTRAS: lewm
+    image: wmcp-jepa-service:lewm
+    environment:
+      WMCP_BACKEND: lewm
+      WMCP_HF_DEVICE: cpu
+    # The real model loads at startup (checksum verify + safetensors load); give it room.
+    healthcheck:
+      start_period: 60s
