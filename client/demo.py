@@ -34,13 +34,27 @@ def wait_until_ready(client: WMCPClient, *, attempts: int = 30, delay: float = 1
 
 
 def run_demo(
-    client: WMCPClient, *, s: int = 16, t: int = 8, horizon: int = 8, iterations: int = 5, seed: int = 0
+    client: WMCPClient, *, s: int = 16, t: int = 8, horizon: int = 8, iterations: int = 5,
+    candidates: int = 64, seed: int = 0,
 ) -> dict[str, Any]:
-    """Run one metadata -> score -> plan cycle and return the structured results."""
+    """Run one metadata -> score -> plan cycle and return the structured results.
+
+    The real ``lewm`` backend materialises pixels, so we send real base64 frames to it; the mock reads
+    only shapes, so URI placeholders suffice there.
+    """
     metadata = client.metadata()
-    score = client.score(payloads.score_request("demo-score", s=s, t=t, inline_actions=True, seed=seed))
-    plan = client.plan(payloads.plan_request("demo-plan", horizon=horizon, iterations=iterations, seed=seed))
-    return {"metadata": metadata, "score": score, "plan": plan, "request_shape": {"S": s, "T": t, "horizon": horizon}}
+    backend = metadata.get("runtime", {}).get("backend", "mock")
+    pixel_encoding = "base64" if backend == "lewm" else "uri"
+    if backend == "lewm":  # keep the CPU demo snappy
+        candidates = min(candidates, 24)
+        iterations = min(iterations, 3)
+    score = client.score(
+        payloads.score_request("demo-score", s=s, t=t, inline_actions=True, pixel_encoding=pixel_encoding, seed=seed))
+    plan = client.plan(
+        payloads.plan_request("demo-plan", horizon=horizon, iterations=iterations, candidates=candidates,
+                              pixel_encoding=pixel_encoding, seed=seed))
+    return {"metadata": metadata, "score": score, "plan": plan, "backend": backend,
+            "request_shape": {"S": s, "T": t, "horizon": horizon}}
 
 
 def summarize(result: dict[str, Any]) -> str:
@@ -78,7 +92,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--out", default=os.getenv("WMCP_DEMO_OUT"), help="write a static HTML view to this path")
     args = parser.parse_args(argv)
 
-    client = WMCPClient(args.base_url, model_id=args.model_id)
+    timeout = float(os.getenv("WMCP_TIMEOUT", "180"))
+    client = WMCPClient(args.base_url, model_id=args.model_id, timeout=timeout)
     if not wait_until_ready(client):
         print(f"service at {args.base_url} did not become ready", flush=True)
         return 1

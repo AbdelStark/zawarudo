@@ -7,12 +7,26 @@ URI-backed or tiny inline arrays so the demo runs end-to-end against the mock ba
 
 from __future__ import annotations
 
+import base64
+import os
 import random
 from typing import Any, Optional, Sequence
 
 ACTION_DIM = 10
 IMAGE_SIZE = 224
 HISTORY_SIZE = 3
+
+
+def _numel(shape: Sequence[int]) -> int:
+    n = 1
+    for d in shape:
+        n *= d
+    return n
+
+
+def _random_uint8_b64(shape: Sequence[int]) -> str:
+    """Random uint8 RGB bytes (stdlib only). A synthetic stand-in for real Push-T frames."""
+    return base64.b64encode(os.urandom(_numel(shape))).decode()
 
 
 def tensor_ref(
@@ -23,25 +37,35 @@ def tensor_ref(
     dtype: str = "float32",
     uri: Optional[str] = None,
     data: Any = None,
+    data_b64: Optional[str] = None,
 ) -> dict[str, Any]:
     ref: dict[str, Any] = {"kind": "tensor", "encoding": encoding, "dtype": dtype, "shape": list(shape), "layout": layout}
     if encoding == "uri":
         ref["uri"] = uri or "memory://tensor.npy"
     elif encoding == "inline":
         ref["data"] = data
+    elif encoding == "base64":
+        ref["data_b64"] = data_b64
     else:
         raise ValueError(f"unsupported encoding for demo payloads: {encoding}")
     return ref
 
 
-def observation(uri: str, *, b: int = 1, history: int = HISTORY_SIZE, dtype: str = "uint8") -> dict[str, Any]:
+def _pixels(shape: list[int], layout: str, *, encoding: str, uri: str) -> dict[str, Any]:
+    """A pixel TensorRef: URI placeholder (mock) or real base64 bytes (lewm)."""
+    if encoding == "base64":
+        return tensor_ref(shape, layout, encoding="base64", dtype="uint8", data_b64=_random_uint8_b64(shape))
+    return tensor_ref(shape, layout, encoding="uri", dtype="uint8", uri=uri)
+
+
+def observation(uri: str, *, b: int = 1, history: int = HISTORY_SIZE, encoding: str = "uri") -> dict[str, Any]:
     shape = [b, history, 3, IMAGE_SIZE, IMAGE_SIZE]
-    return {"modality": "rgb", "tensor": tensor_ref(shape, "B,H,C,224,224", encoding="uri", dtype=dtype, uri=uri)}
+    return {"modality": "rgb", "tensor": _pixels(shape, "B,H,C,224,224", encoding=encoding, uri=uri)}
 
 
-def goal(uri: str, *, b: int = 1, g: int = 1, dtype: str = "uint8") -> dict[str, Any]:
+def goal(uri: str, *, b: int = 1, g: int = 1, encoding: str = "uri") -> dict[str, Any]:
     shape = [b, g, 3, IMAGE_SIZE, IMAGE_SIZE]
-    return {"modality": "rgb", "tensor": tensor_ref(shape, "B,G,C,224,224", encoding="uri", dtype=dtype, uri=uri)}
+    return {"modality": "rgb", "tensor": _pixels(shape, "B,G,C,224,224", encoding=encoding, uri=uri)}
 
 
 def action_candidates(
@@ -82,11 +106,12 @@ def score_request(
     obs_uri: str = "memory://demo/history.npy",
     goal_uri: str = "memory://demo/goal.npy",
     inline_actions: bool = True,
+    pixel_encoding: str = "uri",
     seed: int = 0,
 ) -> dict[str, Any]:
     inputs = {
-        "observation_history": observation(obs_uri, b=b),
-        "goal": goal(goal_uri, b=b),
+        "observation_history": observation(obs_uri, b=b, encoding=pixel_encoding),
+        "goal": goal(goal_uri, b=b, encoding=pixel_encoding),
         "action_candidates": action_candidates(b, s, t, inline=inline_actions, seed=seed),
     }
     return _envelope(request_id, "score", inputs, {"history_size": HISTORY_SIZE, "horizon": t, "seed": seed})
@@ -100,19 +125,21 @@ def rollout_request(
     t: int = 8,
     obs_uri: str = "memory://demo/history.npy",
     inline_actions: bool = True,
+    pixel_encoding: str = "uri",
     seed: int = 0,
 ) -> dict[str, Any]:
     inputs = {
-        "observation_history": observation(obs_uri, b=b),
+        "observation_history": observation(obs_uri, b=b, encoding=pixel_encoding),
         "action_candidates": action_candidates(b, s, t, inline=inline_actions, seed=seed),
     }
     return _envelope(request_id, "rollout", inputs, {"history_size": HISTORY_SIZE, "horizon": t, "seed": seed})
 
 
 def encode_request(
-    request_id: str = "demo-encode", *, b: int = 1, obs_uri: str = "memory://demo/history.npy"
+    request_id: str = "demo-encode", *, b: int = 1, obs_uri: str = "memory://demo/history.npy", pixel_encoding: str = "uri"
 ) -> dict[str, Any]:
-    return _envelope(request_id, "encode", {"observation_history": observation(obs_uri, b=b)}, {"history_size": HISTORY_SIZE})
+    inputs = {"observation_history": observation(obs_uri, b=b, encoding=pixel_encoding)}
+    return _envelope(request_id, "encode", inputs, {"history_size": HISTORY_SIZE})
 
 
 def plan_request(
@@ -123,9 +150,13 @@ def plan_request(
     candidates: int = 64,
     obs_uri: str = "memory://demo/history.npy",
     goal_uri: str = "memory://demo/goal.npy",
+    pixel_encoding: str = "uri",
     seed: int = 0,
 ) -> dict[str, Any]:
-    inputs = {"observation_history": observation(obs_uri), "goal": goal(goal_uri)}
+    inputs = {
+        "observation_history": observation(obs_uri, encoding=pixel_encoding),
+        "goal": goal(goal_uri, encoding=pixel_encoding),
+    }
     params = {
         "planner": "cem",
         "horizon": horizon,

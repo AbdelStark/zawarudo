@@ -1,4 +1,4 @@
-.PHONY: install test run docker-build compose-up compose-down package package-verify bench demo demo-gpu demo-down
+.PHONY: install test run docker-build compose-up compose-down package package-verify bench demo demo-gpu demo-lewm demo-down
 
 install:
 	pip install -e .[dev]
@@ -30,6 +30,10 @@ compose-down:
 # One-command demo: client + backend + monitoring (mock backend by default).
 demo:
 	cd deployment && docker compose up --build
+
+# Real LeWorldModel backend on CPU (build the package first: make package, or the real one).
+demo-lewm:
+	cd deployment && docker compose -f docker-compose.yaml -f docker-compose.lewm.yaml up --build
 
 # Same, with an NVIDIA GPU reservation (needs the NVIDIA Container Toolkit).
 demo-gpu:
