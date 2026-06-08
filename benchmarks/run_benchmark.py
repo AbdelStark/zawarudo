@@ -59,12 +59,12 @@ def _readyz(base_url: str) -> Optional[dict]:
         return None
 
 
-async def _run(base_url: str, names: list[str], requests: Optional[int]) -> list[ProfileResult]:
+async def _run(base_url: str, names: list[str], requests: Optional[int], encoding: str) -> list[ProfileResult]:
     poster = make_urllib_poster(base_url)
     out: list[ProfileResult] = []
     for name in names:
         profile = PROFILES[name]
-        out.append(await run_profile(poster, profile, total_requests=requests))
+        out.append(await run_profile(poster, profile, total_requests=requests, encoding=encoding))
     return out
 
 
@@ -78,6 +78,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--requests", type=int, default=None, help="override request count per profile")
     parser.add_argument("--out", default=None, help="report path (default benchmarks/reports/<profile>-<backend>.md)")
     parser.add_argument("--title", default="WMCP Push-T benchmark report")
+    parser.add_argument("--encoding", choices=["uri", "base64", "auto"], default="auto",
+                        help="payload encoding; 'auto' uses base64 for the lewm backend, uri otherwise")
     args = parser.parse_args(argv)
 
     if args.all:
@@ -94,9 +96,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     readyz = _readyz(args.base_url)
     backend = backend_from_readyz(readyz)
+    encoding = ("base64" if backend == "lewm" else "uri") if args.encoding == "auto" else args.encoding
     meta = collect_metadata(base_url=args.base_url, backend=backend, model_revision=(readyz or {}).get("model", "lewm-pusht"))
+    meta["encoding_mode"] = encoding
 
-    results = asyncio.run(_run(args.base_url, names, args.requests))
+    results = asyncio.run(_run(args.base_url, names, args.requests, encoding))
     report = render_report(meta, results, title=args.title)
 
     out_path = Path(args.out) if args.out else Path("benchmarks/reports") / f"{names[0]}-{backend}.md"

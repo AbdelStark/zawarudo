@@ -8,7 +8,7 @@ in `../load-test-plan.md` with the required benchmark metadata + aggregated resu
 | File | Backend | Status |
 |---|---|---|
 | `demo-mock.md` | `mock` | Demonstration run of **all** profiles end-to-end (0 errors). Mock latency is **not** representative of the real model — it validates the harness, shapes, and the report pipeline. |
-| `score-medium-lewm.md` | `lewm` | **Pending** — blocked on the real runtime (#3) + HF weights + GPU. Produce with the command below once available. |
+| `score-medium-lewm.md` | `lewm` | **Done (CPU)** — `score-medium` end-to-end against the real checkpoint, 0 errors, correct `[B,S]` costs. CPU p50 ≈ 8.4 s (the `p95 < 700 ms` SLO is GPU-targeted; CPU is a documented exception). Re-run on GPU via `make demo-gpu` for the SLO. |
 
 ## Reproduce
 

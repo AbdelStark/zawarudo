@@ -85,14 +85,14 @@ class ProfileResult:
         return dist
 
 
-def _request_spec(profile: Profile, index: int) -> tuple[str, str, Optional[dict]]:
+def _request_spec(profile: Profile, index: int, encoding: str) -> tuple[str, str, Optional[dict]]:
     rid = f"bench-{profile.name}-{index}"
     op = profile.operation
     if op == "health":
         return "GET", "/healthz", None
     if op == "metadata":
         return "GET", f"/wmcp/v1/models/{MODEL_ID}", None
-    return "POST", f"/wmcp/v1/models/{MODEL_ID}:{op}", build_request(profile, rid)
+    return "POST", f"/wmcp/v1/models/{MODEL_ID}:{op}", build_request(profile, rid, encoding=encoding)
 
 
 async def _one(poster: Poster, method: str, path: str, body: Optional[dict]) -> tuple[float, Optional[str], Optional[int]]:
@@ -119,13 +119,14 @@ async def run_profile(
     *,
     total_requests: Optional[int] = None,
     concurrency: Optional[int] = None,
+    encoding: str = "uri",
 ) -> ProfileResult:
     n = total_requests if total_requests is not None else profile.default_requests
     conc = concurrency if concurrency is not None else max(1, profile.concurrency)
     sem = asyncio.Semaphore(conc)
 
     async def worker(index: int) -> tuple[float, Optional[str], Optional[int]]:
-        method, path, body = _request_spec(profile, index)
+        method, path, body = _request_spec(profile, index, encoding)
         async with sem:
             return await _one(poster, method, path, body)
 
