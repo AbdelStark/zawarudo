@@ -37,6 +37,20 @@ cp .env.example .env                          # then set HF_TOKEN + WMCP_BACKEND
 WMCP_BACKEND=lewm make demo
 ```
 
+### Monitoring (Grafana + traces)
+
+Grafana (http://localhost:3000, `admin`/`admin`) is **auto-provisioned** — no manual datasource setup:
+
+- **Prometheus** datasource (default) + a pre-loaded **WMCP-JEPA Serve** dashboard: request rate,
+  end-to-end latency p50/p95/p99, model-compute, queue wait, candidate count, rollout horizon,
+  `wmcp_planner_iterations`, and input-validation errors.
+- **Tempo** datasource for traces. The service emits OpenTelemetry spans
+  (`wmcp.request → wmcp.validate → wmcp.preprocess → wmcp.model.{score,rollout,plan} → wmcp.serialize`)
+  to the OTel collector, which forwards them to Tempo. Explore them in Grafana → **Explore → Tempo**
+  (TraceQL `{ }` or `{ name = "wmcp.model.score" }`).
+
+During a demo run you should see metrics update live and a trace per request for every operation.
+
 ## Contents
 
 ```text
