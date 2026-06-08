@@ -15,7 +15,8 @@ data/raw/
 # Local automation and scratch workspaces
 .agents/harness/
 .tldr/
-.claude/
+.claude/cache/
+.claude/tsc-cache/
 
 # Local demo/showcase scratch outputs (.artifacts/ already ignored above)
 /public-demo.html
