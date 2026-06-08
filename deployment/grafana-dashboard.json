@@ -1,97 +1,150 @@
 {
+  "uid": "wmcp-jepa",
   "title": "WMCP-JEPA Serve",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "prometheus" },
+        "hide": 0
+      }
+    ]
+  },
   "panels": [
     {
       "type": "timeseries",
       "title": "Request rate",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(wmcp_requests_total[5m])) by (operation,status)"
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(wmcp_requests_total[5m])) by (operation,status)",
+          "legendFormat": "{{operation}} {{status}}"
         }
       ],
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 12,
-        "h": 8
-      }
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
     },
     {
       "type": "timeseries",
-      "title": "p95 latency",
+      "title": "End-to-end latency p50/p95/p99",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))"
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "p50 {{operation}}"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "p95 {{operation}}"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "p99 {{operation}}"
         }
       ],
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 12,
-        "h": 8
-      }
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
     },
     {
       "type": "timeseries",
       "title": "Model compute p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le, operation))"
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "{{operation}}"
         }
       ],
-      "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      }
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
     },
     {
       "type": "timeseries",
       "title": "Queue wait p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket[5m])) by (le, operation))"
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "{{operation}}"
         }
       ],
-      "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      }
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
     },
     {
       "type": "timeseries",
-      "title": "Candidate count",
+      "title": "Candidate count p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wmcp_candidate_count_bucket[5m])) by (le, operation))"
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_candidate_count_bucket[5m])) by (le, operation))",
+          "legendFormat": "{{operation}}"
         }
       ],
-      "gridPos": {
-        "x": 0,
-        "y": 16,
-        "w": 12,
-        "h": 8
-      }
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rollout horizon p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_rollout_horizon_bucket[5m])) by (le, operation))",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Planner iterations p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_planner_iterations_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Input validation errors",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(wmcp_input_validation_errors_total[5m])) by (operation,code)",
+          "legendFormat": "{{operation}} {{code}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 }
     },
     {
       "type": "stat",
       "title": "Model loaded",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "max(wmcp_model_loaded)"
         }
       ],
-      "gridPos": {
-        "x": 12,
-        "y": 16,
-        "w": 6,
-        "h": 4
-      }
+      "gridPos": { "x": 12, "y": 24, "w": 6, "h": 8 }
     }
   ]
 }

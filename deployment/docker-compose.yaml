@@ -69,6 +69,17 @@ services:
       - "4317:4317"
       - "4318:4318"
       - "8889:8889"
+    depends_on:
+      - tempo
+
+  # Traces backend: receives OTLP traces from the collector, queried by Grafana.
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "3200:3200"
 
   grafana:
     image: grafana/grafana:11.1.0
@@ -77,5 +88,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana-dashboard.json:/var/lib/grafana/dashboards/wmcp-jepa.json:ro
+    depends_on:
+      - prometheus
+      - tempo
