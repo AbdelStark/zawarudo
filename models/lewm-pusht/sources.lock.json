@@ -1,0 +1,21 @@
+{
+  "artifact": {
+    "repo": "quentinll/lewm-pusht",
+    "revision": "22b330c28c27ead4bfd1888615af1340e3fe9052"
+  },
+  "note": "Resolved by scripts/pin_sources.py (git ls-remote + HF API).",
+  "sources": {
+    "le-wm": {
+      "commit": "8edfeb336732b5f3ce7b8b210d0ba370a09e2cac",
+      "url": "https://github.com/lucas-maes/le-wm"
+    },
+    "stable-pretraining": {
+      "commit": "c64acdc1e25fac5e1d9c167c1913b8dca0113cf4",
+      "url": "https://github.com/rbalestr-lab/stable-pretraining"
+    },
+    "stable-worldmodel": {
+      "commit": "1986aae61977434d3d55197d2779a5f300deb82f",
+      "url": "https://github.com/galilai-group/stable-worldmodel"
+    }
+  }
+}

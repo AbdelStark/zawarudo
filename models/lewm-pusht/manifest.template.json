@@ -1,0 +1,83 @@
+{
+  "action_space": {
+    "action_dim": 10,
+    "ref": "action_space.json"
+  },
+  "artifact_revision": "UNPINNED",
+  "artifact_uri": "https://huggingface.co/quentinll/lewm-pusht",
+  "framework": "pytorch",
+  "inputs": {
+    "action_candidates": {
+      "action_dim": 10,
+      "layout": "B,S,T,A"
+    },
+    "goal": {
+      "layout": "B,G,C,224,224 or B,G,224,224,C"
+    },
+    "observation_history": {
+      "history_size": 3,
+      "layout": "B,H,C,224,224 or B,H,224,224,C"
+    }
+  },
+  "latent_space": {
+    "dimension": 192,
+    "dtype": "float32"
+  },
+  "limits": {
+    "max_batch": 8,
+    "max_candidates": 1024,
+    "max_horizon": 64,
+    "max_planner_iterations": 10
+  },
+  "model_family": "jepa",
+  "model_id": "lewm-pusht",
+  "model_type": "action_conditioned_world_model",
+  "outputs": {
+    "encode": {
+      "latents": "B,H,D"
+    },
+    "plan": {
+      "best_action_sequence": "B,T,A",
+      "best_cost": "B",
+      "first_action": "B,A"
+    },
+    "rollout": {
+      "predicted_latents": "B,S,T,D"
+    },
+    "score": {
+      "best_index": "B",
+      "cost_statistics": [
+        "min",
+        "mean",
+        "max"
+      ],
+      "costs": "B,S"
+    }
+  },
+  "preprocessing": {
+    "ref": "preprocessing.json"
+  },
+  "runtime": {
+    "backend": "lewm",
+    "class": "wmcp_jepa_service.runtime.LeWMRuntime",
+    "device": "cuda",
+    "python": ">=3.10"
+  },
+  "schema_version": "0.1",
+  "source_repository": "https://github.com/lucas-maes/le-wm",
+  "source_revision": "UNPINNED",
+  "supported_operations": [
+    "metadata",
+    "encode",
+    "predict",
+    "rollout",
+    "score",
+    "plan"
+  ],
+  "task": "pusht",
+  "weights": {
+    "file": "weights.safetensors",
+    "format": "safetensors",
+    "tensors": {}
+  }
+}

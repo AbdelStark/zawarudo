@@ -12,6 +12,13 @@ target/
 docs/papers/arxiv/
 data/raw/
 
+# Built model-package artifacts (weights + generated manifest/checksums); the spec files are committed
+models/**/weights.*
+models/**/*.safetensors
+models/**/*.pt
+models/**/checksums.txt
+models/**/manifest.json
+
 # Local automation and scratch workspaces
 .agents/harness/
 .tldr/

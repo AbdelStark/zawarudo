@@ -1,0 +1,32 @@
+{
+  "action_dim": 10,
+  "bounds": {
+    "high": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "low": [
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "layout": "B,S,T,A",
+  "note": "Bounds are placeholders pending upstream confirmation (RFC-0005 open issue #1).",
+  "space": "continuous"
+}

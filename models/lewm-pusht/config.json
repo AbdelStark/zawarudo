@@ -1,0 +1,15 @@
+{
+  "_note": "Best-effort transcription of the published quentinll/lewm-pusht config. Confirm exact fields against the HF revision pinned in sources.lock.json before a production build.",
+  "model_family": "jepa",
+  "task": "pusht",
+  "latent_dim": 192,
+  "action_dim": 10,
+  "image_size": 224,
+  "history_size": 3,
+  "encoder": {
+    "type": "vit",
+    "variant": "tiny",
+    "patch_size": 14,
+    "image_size": 224
+  }
+}
