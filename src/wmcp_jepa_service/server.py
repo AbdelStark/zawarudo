@@ -32,7 +32,21 @@ telemetry.configure_logging(LOG_LEVEL)
 telemetry.init_tracing(OTEL_ENDPOINT)
 log = logging.getLogger("wmcp")
 
-backend: WorldModelBackend = MockWorldModelBackend(model_id=MODEL_ID, revision="mock", backend=BACKEND_NAME)
+
+def _make_backend() -> WorldModelBackend:
+    """Select the backend from WMCP_BACKEND. `mock` (default) keeps the contract-test path; `lewm`
+    loads the real Push-T runtime from a trusted package (torch imported lazily only when selected)."""
+    if BACKEND_NAME == "lewm":
+        from .runtime_lewm import LeWMRuntime  # lazy: torch/transformers only for the real backend
+
+        package = os.getenv("WMCP_MODEL_PACKAGE", "/models/lewm-pusht")
+        device = os.getenv("WMCP_HF_DEVICE", "cpu")
+        log.info("loading lewm backend", extra={"extra_fields": {"package": package, "device": device}})
+        return LeWMRuntime(package, device=device)
+    return MockWorldModelBackend(model_id=MODEL_ID, revision="mock", backend=BACKEND_NAME)
+
+
+backend: WorldModelBackend = _make_backend()
 app = FastAPI(title="WMCP-JEPA Serve", version="0.1.0")
 
 
