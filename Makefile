@@ -1,4 +1,4 @@
-.PHONY: install test run docker-build compose-up compose-down package package-verify
+.PHONY: install test run docker-build compose-up compose-down package package-verify bench
 
 install:
 	pip install -e .[dev]
@@ -11,6 +11,9 @@ package:
 
 package-verify:
 	python scripts/build_model_package.py verify --package .artifacts/model-package/lewm-pusht
+
+bench:
+	python benchmarks/run_benchmark.py --base-url $(or $(WMCP_BASE_URL),http://localhost:8080) --profile score-medium
 
 run:
 	uvicorn wmcp_jepa_service.server:app --host 0.0.0.0 --port 8080 --reload
