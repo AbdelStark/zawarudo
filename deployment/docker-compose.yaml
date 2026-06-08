@@ -1,5 +1,11 @@
-version: "3.9"
-
+# One-command Push-T demo: client + backend + monitoring.
+#
+#   docker compose up --build                 # mock backend — no weights needed
+#   WMCP_BACKEND=lewm docker compose up --build   # real LeWorldModel (CPU ok; needs a built package)
+#   docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up   # GPU
+#
+# Build the model package first for the lewm backend (see models/lewm-pusht/README.md):
+#   make package   # -> .artifacts/model-package/lewm-pusht (synthetic) ; or build the real one
 services:
   wmcp-jepa-service:
     build:
@@ -10,21 +16,42 @@ services:
       - "8080:8080"
     environment:
       WMCP_MODEL_ID: lewm-pusht
-      WMCP_BACKEND: mock
+      WMCP_BACKEND: ${WMCP_BACKEND:-mock}
+      WMCP_MODEL_PACKAGE: /models/lewm-pusht
       WMCP_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       WMCP_ENABLE_PROMETHEUS: "true"
-      WMCP_LOG_LEVEL: INFO
-    # Enable this on a GPU host with NVIDIA Container Toolkit.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+      WMCP_LOG_LEVEL: ${WMCP_LOG_LEVEL:-INFO}
+    volumes:
+      # A built model package (real or synthetic) mounted read-only for the lewm backend.
+      - ${WMCP_MODEL_PACKAGE_DIR:-../.artifacts/model-package/lewm-pusht}:/models/lewm-pusht:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 5s
     depends_on:
-      - otel-collector
-      - prometheus
+      otel-collector:
+        condition: service_started
+      prometheus:
+        condition: service_started
+
+  # One-shot demo client: waits for the backend to be healthy, runs a score+plan cycle, writes HTML.
+  client:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+    image: wmcp-pusht-client:local
+    environment:
+      WMCP_BASE_URL: http://wmcp-jepa-service:8080
+      WMCP_MODEL_ID: lewm-pusht
+      WMCP_DEMO_OUT: /out/demo.html
+    volumes:
+      - ../.artifacts/demo:/out
+    depends_on:
+      wmcp-jepa-service:
+        condition: service_healthy
+    restart: "no"
 
   prometheus:
     image: prom/prometheus:v2.53.0
