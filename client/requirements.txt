@@ -1,0 +1,6 @@
+# The default demo (client.demo) uses only the Python standard library — no install required.
+#
+# Optional extras, only needed to synthesize *real* Push-T image payloads (uint8 RGB frames) and
+# upload them to a URI the service can resolve:
+#   numpy>=1.26
+#   pillow>=10.0
