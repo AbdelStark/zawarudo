@@ -8,6 +8,35 @@ This archive contains a complete project dossier for building a production-grade
 
 The recommendation is to implement the first production demo with **FastAPI + Ray Serve + PyTorch** behind a WMCP API layer, package it for Docker Compose and Kubernetes, and keep **Triton Inference Server** as the phase-two optimization path. **vLLM should not be the first inference core** for Push-T/LeWM because its strongest architecture is for token-oriented LLM generation and pooling, while the world-model workload is a custom action-conditioned latent rollout and cost/plan computation. vLLM remains useful as a design reference and as a research spike for a plugin/pooling-style adapter.
 
+## One-command demo
+
+Bring up the whole demo — **client + backend + monitoring** — with one command:
+
+```bash
+make demo            # docker compose up: client + backend + prometheus + otel + grafana
+# or, on an NVIDIA GPU host:
+make demo-gpu
+make demo-down       # stop + clean volumes
+```
+
+What happens: the backend starts, becomes healthy, then the one-shot **client** runs a
+`metadata → score → plan` cycle against it and writes a result page to `.artifacts/demo/demo.html`.
+
+| Service | URL | Notes |
+|---|---|---|
+| WMCP API | http://localhost:8080 | `/readyz`, `/metrics`, `/wmcp/v1/models/lewm-pusht:{score,plan,...}` |
+| Prometheus | http://localhost:9090 | scrapes the service `/metrics` |
+| Grafana | http://localhost:3000 | `admin` / `admin`; dashboards auto-provisioned |
+
+By default the backend runs the **mock** runtime (no weights needed). To serve the real Push-T
+checkpoint on CPU or GPU, build the model package and switch the backend:
+
+```bash
+make package                                  # build a model package (see models/lewm-pusht/README.md)
+cp .env.example .env                          # then set HF_TOKEN + WMCP_BACKEND=lewm
+WMCP_BACKEND=lewm make demo
+```
+
 ## Contents
 
 ```text

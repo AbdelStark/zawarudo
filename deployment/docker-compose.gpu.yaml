@@ -1,0 +1,14 @@
+# GPU overlay — adds an NVIDIA device reservation to the inference service.
+# Requires the NVIDIA Container Toolkit on the host. Use with the base file:
+#   docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up --build
+services:
+  wmcp-jepa-service:
+    environment:
+      WMCP_HF_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
