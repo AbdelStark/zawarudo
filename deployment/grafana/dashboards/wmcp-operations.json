@@ -1,0 +1,183 @@
+{
+  "uid": "wmcp-ops",
+  "title": "WMCP LeWM Operations",
+  "tags": ["wmcp", "lewm", "operations"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "links": [
+    { "title": "Interactive dashboard", "url": "http://localhost:8088", "targetBlank": true },
+    { "title": "Prometheus", "url": "http://localhost:9090", "targetBlank": true }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "operation",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(wmcp_requests_total, operation)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Requests in last 15m",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(increase(wmcp_requests_total{operation=~\"$operation\"}[15m]))", "legendFormat": "requests" }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Current request rate",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(wmcp_requests_total{operation=~\"$operation\"}[2m]))", "legendFormat": "rate" }
+      ],
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "p95 end-to-end latency",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Validation errors in last 15m",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(increase(wmcp_input_validation_errors_total{operation=~\"$operation\"}[15m]))", "legendFormat": "errors" }
+      ],
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Request rate by operation and status",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(wmcp_requests_total{operation=~\"$operation\"}[2m])) by (operation,status)",
+          "legendFormat": "{{operation}} {{status}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "End-to-end latency p50 / p95 / p99",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(wmcp_request_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "p50 {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "p95 {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(wmcp_request_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "p99 {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Model compute p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation,backend))",
+          "legendFormat": "{{operation}} {{backend}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Queue wait p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Planner iterations p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_planner_iterations_bucket[5m])) by (le,operation))",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 20, "w": 8, "h": 8 }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Model loaded",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max(wmcp_model_loaded) by (model,revision,backend)", "legendFormat": "{{model}} {{backend}} {{revision}}" }
+      ],
+      "gridPos": { "x": 8, "y": 20, "w": 8, "h": 8 }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "GPU memory used",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "max(wmcp_gpu_memory_used_bytes) by (device)", "legendFormat": "{{device}}" }
+      ],
+      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 8 }
+    },
+    {
+      "id": 12,
+      "type": "traces",
+      "title": "Recent traces in Tempo",
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "targets": [
+        { "query": "{ .service.name = \"wmcp-jepa-service\" }", "queryType": "traceql" }
+      ],
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 8 }
+    }
+  ]
+}

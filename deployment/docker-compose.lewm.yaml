@@ -17,3 +17,9 @@ services:
     # The real model loads at startup (checksum verify + safetensors load); give it room.
     healthcheck:
       start_period: 60s
+
+  traffic-generator:
+    environment:
+      # The generator already detects the lewm backend and uses small base64-pixel requests.
+      # This slower cadence keeps CPU demos responsive while still filling dashboards.
+      WMCP_TRAFFIC_INTERVAL: ${WMCP_TRAFFIC_INTERVAL:-8}

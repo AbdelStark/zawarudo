@@ -1,4 +1,4 @@
-# One-command Push-T demo: client + backend + monitoring.
+# One-command Push-T demo: frontend + client + backend + monitoring.
 #
 #   docker compose up --build                 # mock backend — no weights needed
 #   WMCP_BACKEND=lewm docker compose up --build   # real LeWorldModel (CPU ok; needs a built package)
@@ -53,6 +53,39 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Continuous low-pressure request stream so Prometheus/Grafana have useful data immediately.
+  traffic-generator:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+    image: wmcp-pusht-client:local
+    command: ["python", "-m", "client.traffic"]
+    environment:
+      WMCP_BASE_URL: http://wmcp-jepa-service:8080
+      WMCP_MODEL_ID: lewm-pusht
+      WMCP_TRAFFIC_PROFILE: ${WMCP_TRAFFIC_PROFILE:-steady}
+      WMCP_TRAFFIC_INTERVAL: ${WMCP_TRAFFIC_INTERVAL:-4}
+      WMCP_TRAFFIC_LOOPS: ${WMCP_TRAFFIC_LOOPS:-0}
+      WMCP_TRAFFIC_INCLUDE_INVALID: ${WMCP_TRAFFIC_INCLUDE_INVALID:-true}
+      WMCP_TRAFFIC_REAL_PIXELS: "true"
+    depends_on:
+      wmcp-jepa-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: wmcp-demo-dashboard:local
+    ports:
+      - "8088:80"
+    depends_on:
+      wmcp-jepa-service:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
   prometheus:
     image: prom/prometheus:v2.53.0
     volumes:
@@ -92,7 +125,7 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana-dashboard.json:/var/lib/grafana/dashboards/wmcp-jepa.json:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
       - tempo

@@ -1,0 +1,136 @@
+{
+  "uid": "wmcp-traffic",
+  "title": "WMCP Traffic Stimulator",
+  "tags": ["wmcp", "traffic", "demo"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "links": [
+    { "title": "Interactive dashboard", "url": "http://localhost:8088", "targetBlank": true },
+    { "title": "Operations dashboard", "url": "/d/wmcp-ops/wmcp-lewm-operations", "targetBlank": false }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "barchart",
+      "title": "Operation mix in last 15m",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(wmcp_requests_total[15m])) by (operation)",
+          "legendFormat": "{{operation}}",
+          "instant": true
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "Status mix in last 15m",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(wmcp_requests_total[15m])) by (status)",
+          "legendFormat": "{{status}}",
+          "instant": true
+        }
+      ],
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Traffic generator heartbeat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(wmcp_requests_total[2m])) OR on() vector(0)", "legendFormat": "req/s" }
+      ],
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Candidate count p50 / p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(wmcp_candidate_count_bucket[5m])) by (le,operation))",
+          "legendFormat": "p50 {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_candidate_count_bucket[5m])) by (le,operation))",
+          "legendFormat": "p95 {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Rollout horizon p50 / p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(wmcp_rollout_horizon_bucket[5m])) by (le,operation))",
+          "legendFormat": "p50 {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_rollout_horizon_bucket[5m])) by (le,operation))",
+          "legendFormat": "p95 {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Plan workload",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_planner_iterations_bucket[5m])) by (le))",
+          "legendFormat": "iterations p95"
+        },
+        {
+          "expr": "sum(rate(wmcp_requests_total{operation=\"plan\"}[2m]))",
+          "legendFormat": "plan req/s"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Error stimulation",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(wmcp_input_validation_errors_total[5m])) by (operation,code)",
+          "legendFormat": "{{operation}} {{code}}"
+        },
+        {
+          "expr": "sum(rate(wmcp_requests_total{status=\"invalid\"}[5m])) by (operation)",
+          "legendFormat": "invalid {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Endpoint totals by operation and status",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(wmcp_requests_total[30m])) by (operation,status)",
+          "legendFormat": "{{operation}} {{status}}",
+          "instant": true
+        }
+      ],
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 }
+    }
+  ]
+}

@@ -20,11 +20,17 @@ CPU or GPU. One command to a running demo.
 ```bash
 make demo-local                 # backend + client, end to end (mock, no weights)
 make demo-local BACKEND=lewm    # the real Push-T checkpoint on CPU
-make demo                       # full stack: client + backend + Prometheus + OTel + Grafana
+make demo                       # full stack: dashboard + traffic + backend + Prometheus + OTel + Grafana
 ```
 
 `make demo-local` boots the API, runs a `metadata → score → plan` cycle against it, and writes an
 HTML view. No Docker required.
+
+`make demo` and `make demo-lewm` expose the interactive dashboard at `http://localhost:8088`. It can
+send direct WMCP requests, run batches, start a browser-side traffic mix, and read live Prometheus
+queries through the dashboard proxy. The compose stack also starts a low-pressure `traffic-generator`
+service so Grafana and the dashboard have useful request, latency, planner, validation-error, and
+shape metrics without manual clicks.
 
 ## Install
 
@@ -90,8 +96,15 @@ Every operation is measured and traced.
 - **Traces**: OTel spans `wmcp.request → validate → preprocess → model.{score,rollout,plan} → serialize`,
   exported over OTLP.
 
-`make demo` provisions Grafana at `:3000` with Prometheus + Tempo datasources and a live dashboard:
-metrics and per-request traces with zero manual setup.
+`make demo` provisions:
+
+- Interactive frontend: `http://localhost:8088`
+- Grafana: `http://localhost:3000` with `WMCP LeWM Operations` and `WMCP Traffic Stimulator`
+- Prometheus: `http://localhost:9090`
+- Tempo: `http://localhost:3200`
+
+The frontend proxies `/api/*` to the WMCP service and `/prometheus/*` to Prometheus, so direct
+requests and live metrics work from the same browser origin.
 
 ## Benchmark
 
@@ -119,7 +132,8 @@ reporting p50/p90/p95/p99, throughput, and error rate with full run context. Rep
 ## Deploy
 
 ```bash
-make demo            # docker compose: client + backend + monitoring
+make demo            # docker compose: dashboard + traffic + client + backend + monitoring
+make demo-lewm       # same stack with the real LeWM backend on CPU
 make demo-gpu        # + NVIDIA device reservation
 kubectl apply -f deployment/k8s/deployment.yaml
 kubectl apply -f deployment/k8s/kserve-inferenceservice.yaml   # KServe InferenceService

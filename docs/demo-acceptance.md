@@ -14,7 +14,8 @@ python scripts/build_model_package.py verify --package .artifacts/model-package/
 
 # 2. One command: client + real backend + monitoring (CPU)
 make demo-lewm            # docker compose -f docker-compose.yaml -f docker-compose.lewm.yaml up --build
-# Grafana http://localhost:3000 (admin/admin) · Prometheus :9090 · Tempo :3200
+# Dashboard http://localhost:8088 · Grafana http://localhost:3000 (admin/admin)
+# Prometheus :9090 · Tempo :3200
 ```
 
 ## Acceptance criteria (RFC-0005 §"Acceptance criteria")
@@ -25,7 +26,7 @@ make demo-lewm            # docker compose -f docker-compose.yaml -f docker-comp
 | 2 | Contract tests pass using example JSON payloads | ✅ | `tests/test_endpoints.py` posts every endpoint with `examples/*.json` → 200 + documented output keys. |
 | 3 | `score` returns `[B,S]` costs | ✅ | Real backend: `costs [1,16]` (and `[1,256]` in `score-medium`); golden test asserts shape + values within tol. |
 | 4 | `plan` returns `[B,T,10]` actions + `[B,10]` first action | ✅ | Real backend: `best_action_sequence [1,8,10]`, `first_action [1,10]`, CEM `best_cost_by_iteration` converging. |
-| 5 | Prometheus **and** OTel telemetry visible during the demo | ✅ | Prometheus scraped `wmcp_model_compute_seconds{backend="lewm"}` for score+plan and `wmcp_planner_iterations`; Tempo held the service's `wmcp.request`/`wmcp.model.plan` traces; Grafana auto-provisioned Prometheus+Tempo datasources + the **WMCP-JEPA Serve** dashboard. |
+| 5 | Prometheus **and** OTel telemetry visible during the demo | ✅ | Prometheus scraped `wmcp_model_compute_seconds{backend="lewm"}` for score+plan and `wmcp_planner_iterations`; Tempo held the service's `wmcp.request`/`wmcp.model.plan` traces; Grafana auto-provisioned Prometheus+Tempo datasources + the **WMCP LeWM Operations** and **WMCP Traffic Stimulator** dashboards. |
 | 6 | Benchmark report includes the full benchmark context | ✅ | `benchmarks/reports/score-medium-lewm.md` (real lewm CPU; commit, backend, hardware, PyTorch, encoding, candidate distribution, p50/p95/p99). |
 | 7 | ≥5 RFC issues filed from implementation learnings | ✅ | See "Follow-up RFC issues" below. |
 
@@ -45,7 +46,10 @@ wrote /out/demo.html
 
 - Prometheus: `score backend=lewm`, `plan backend=lewm`, `wmcp_planner_iterations` present.
 - Tempo: 4 traces, service `wmcp-jepa-service`, spans incl. `wmcp.request` / `wmcp.model.plan`.
-- Grafana datasources: `prometheus`, `tempo`; dashboard: `WMCP-JEPA Serve`.
+- Interactive dashboard: `http://localhost:8088`; direct requests, batch runs, pregenerated mix, and
+  browser-side stimulator.
+- Grafana datasources: `prometheus`, `tempo`; dashboards: `WMCP LeWM Operations`,
+  `WMCP Traffic Stimulator`.
 
 ## Known limitations
 

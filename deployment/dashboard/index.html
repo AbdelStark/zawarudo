@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WMCP LeWM Console</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">WMCP demo console</p>
+          <h1>LeWM request and telemetry deck</h1>
+        </div>
+        <nav class="links" aria-label="Demo services">
+          <a href="http://localhost:3000/d/wmcp-ops/wmcp-lewm-operations" target="_blank" rel="noreferrer">Grafana ops</a>
+          <a href="http://localhost:3000/d/wmcp-traffic/wmcp-traffic-stimulator" target="_blank" rel="noreferrer">Grafana traffic</a>
+          <a href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
+        </nav>
+      </header>
+
+      <section class="status-band" aria-label="Service status">
+        <div class="status-item">
+          <span class="label">Readiness</span>
+          <strong id="ready-state">checking</strong>
+        </div>
+        <div class="status-item">
+          <span class="label">Backend</span>
+          <strong id="backend-state">unknown</strong>
+        </div>
+        <div class="status-item">
+          <span class="label">Model</span>
+          <strong id="model-state">lewm-pusht</strong>
+        </div>
+        <div class="status-item">
+          <span class="label">Revision</span>
+          <strong id="revision-state">unknown</strong>
+        </div>
+        <button id="refresh-button" type="button" class="icon-button" title="Refresh status and metrics">Refresh</button>
+      </section>
+
+      <section class="metrics-grid" aria-label="Prometheus summary">
+        <article>
+          <span>Total requests</span>
+          <strong id="metric-total">0</strong>
+        </article>
+        <article>
+          <span>Current rate</span>
+          <strong id="metric-rate">0/s</strong>
+        </article>
+        <article>
+          <span>p95 latency</span>
+          <strong id="metric-p95">n/a</strong>
+        </article>
+        <article>
+          <span>Validation errors</span>
+          <strong id="metric-errors">0</strong>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <section class="panel request-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Request workbench</p>
+              <h2>Send WMCP calls</h2>
+            </div>
+            <span id="payload-mode" class="badge">uri pixels</span>
+          </div>
+
+          <div class="controls">
+            <label>
+              <span>Operation</span>
+              <select id="operation-select">
+                <option value="score">score</option>
+                <option value="plan">plan</option>
+                <option value="rollout">rollout</option>
+                <option value="encode">encode</option>
+              </select>
+            </label>
+            <label>
+              <span>Candidates</span>
+              <input id="candidates-input" type="number" min="1" max="512" value="16">
+            </label>
+            <label>
+              <span>Horizon</span>
+              <input id="horizon-input" type="number" min="1" max="64" value="8">
+            </label>
+            <label>
+              <span>Iterations</span>
+              <input id="iterations-input" type="number" min="1" max="20" value="5">
+            </label>
+            <label>
+              <span>Seed</span>
+              <input id="seed-input" type="number" value="11">
+            </label>
+            <label>
+              <span>Batch</span>
+              <input id="batch-input" type="number" min="1" max="50" value="6">
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="send-button" type="button" class="primary">Send</button>
+            <button id="batch-button" type="button">Run batch</button>
+            <button id="mix-button" type="button">Pregenerated mix</button>
+            <button id="live-button" type="button">Start stimulator</button>
+            <button id="stop-button" type="button" disabled>Stop</button>
+          </div>
+
+          <textarea id="payload-editor" spellcheck="false" aria-label="Request JSON"></textarea>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Prometheus</p>
+              <h2>Live service shape</h2>
+            </div>
+            <span id="metrics-age" class="badge">waiting</span>
+          </div>
+          <div class="chart-stack">
+            <div>
+              <div class="chart-title">Request rate</div>
+              <svg id="chart-rate" viewBox="0 0 320 84" role="img" aria-label="Request rate sparkline"></svg>
+            </div>
+            <div>
+              <div class="chart-title">p95 latency</div>
+              <svg id="chart-latency" viewBox="0 0 320 84" role="img" aria-label="Latency sparkline"></svg>
+            </div>
+          </div>
+          <div id="operation-table" class="operation-table"></div>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Responses</p>
+              <h2>Recent calls</h2>
+            </div>
+            <button id="clear-log-button" type="button">Clear</button>
+          </div>
+          <div id="response-log" class="response-log"></div>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -18,6 +18,7 @@ from wmcp_jepa_service.server import app
 from client import WMCPClient, WMCPError, payloads
 from client.demo import run_demo, summarize
 from client.render import render_html, summarize_html
+from client.traffic import build_cycle
 
 
 def make_client(model_id: str = "lewm-pusht") -> WMCPClient:
@@ -46,6 +47,25 @@ def test_payload_envelopes_validate() -> None:
         RequestEnvelope.model_validate(req)  # raises on a malformed envelope
     score = payloads.score_request(b=1, s=16, t=8)
     assert score["inputs"]["action_candidates"]["tensor"]["shape"] == [1, 16, 8, 10]
+
+
+def test_traffic_generator_builds_valid_envelopes() -> None:
+    calls = build_cycle("mock", 1, seed=3, include_invalid=False, real_pixels=False)
+    assert {call.operation for call in calls} == {"score", "plan"}
+    for call in calls:
+        RequestEnvelope.model_validate(call.request)
+
+
+def test_traffic_generator_uses_lewm_safe_shapes_without_real_pixels() -> None:
+    calls = build_cycle("lewm", 5, seed=3, include_invalid=True, real_pixels=False)
+    by_operation = {call.operation: call for call in calls if not call.expect_error}
+    score_shape = by_operation["score"].request["inputs"]["action_candidates"]["tensor"]["shape"]
+    plan_params = by_operation["plan"].request["parameters"]
+    assert score_shape[1] <= 10
+    assert score_shape[2] == 4
+    assert plan_params["candidates"] <= 12
+    assert plan_params["iterations"] <= 2
+    assert any(call.expect_error for call in calls)
 
 
 def test_metadata_and_readyz() -> None:

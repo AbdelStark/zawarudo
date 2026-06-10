@@ -24,6 +24,10 @@ candidate-cost bars and the chosen first action.
 The `client` service (added in #7) depends on the backend's healthcheck and runs this demo once on
 `docker compose up`, with `WMCP_BASE_URL=http://wmcp-jepa-service:8080`.
 
+The `traffic-generator` service runs `python -m client.traffic` continuously. It detects the active
+backend, sends small base64-pixel requests to the real `lewm` runtime, varies score/rollout/plan
+shapes, and periodically emits an expected validation error so error-rate panels have data.
+
 ## Layout
 
 | Module | Role |
@@ -31,6 +35,7 @@ The `client` service (added in #7) depends on the backend's healthcheck and runs
 | `wmcp_client.py` | stdlib HTTP transport (`metadata`/`encode`/`rollout`/`score`/`plan`); `requester` seam for tests |
 | `payloads.py` | build WMCP envelopes (URI-backed obs/goal, inline or URI action candidates `[B,S,T,10]`) |
 | `demo.py` | `python -m client.demo` entrypoint (`run_demo` + `summarize`) |
+| `traffic.py` | compose traffic stimulator for live Prometheus/Grafana data |
 | `render.py` | static-HTML result view (no external deps) |
 
 ## Optional: real image payloads
