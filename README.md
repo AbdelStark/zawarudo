@@ -26,6 +26,11 @@ make demo                       # full stack: dashboard + traffic + backend + Pr
 `make demo-local` boots the API, runs a `metadata → score → plan` cycle against it, and writes an
 HTML view. No Docker required.
 
+`make demo` runs the synthetic mock backend by default; if the dashboard shows `backend=mock` and
+`revision=mock`, real LeWorldModel checkpoint inference is not running. Use `make demo-lewm` or
+`WMCP_BACKEND=lewm docker compose up --build` after mounting a built model package for the real
+runtime path.
+
 `make demo` and `make demo-lewm` expose the interactive dashboard at `http://localhost:8088`. It can
 send direct WMCP requests, run batches, start a browser-side traffic mix, and read live Prometheus
 queries through the dashboard proxy. The compose stack also starts a low-pressure `traffic-generator`
@@ -91,10 +96,12 @@ and runs under `torch.inference_mode()`.
 Every operation is measured and traced.
 
 - **Metrics** (`/metrics`): `wmcp_requests_total`, `wmcp_request_latency_seconds`,
-  `wmcp_model_compute_seconds`, `wmcp_queue_wait_seconds`, `wmcp_candidate_count`,
-  `wmcp_rollout_horizon`, `wmcp_planner_iterations`, `wmcp_input_validation_errors_total`, GPU gauges.
+  `wmcp_inflight_requests`, `wmcp_request_errors_total`, `wmcp_validation_latency_seconds`,
+  `wmcp_serialize_latency_seconds`, `wmcp_model_compute_seconds`, `wmcp_queue_wait_seconds`,
+  `wmcp_batch_size`, `wmcp_candidate_count`, `wmcp_rollout_horizon`, `wmcp_planner_iterations`,
+  `wmcp_input_validation_errors_total`, `wmcp_service_ready`, GPU gauges.
 - **Traces**: OTel spans `wmcp.request → validate → preprocess → model.{score,rollout,plan} → serialize`,
-  exported over OTLP.
+  exported over OTLP, with W3C `traceparent` propagated from headers or `trace.traceparent`.
 
 `make demo` provisions:
 

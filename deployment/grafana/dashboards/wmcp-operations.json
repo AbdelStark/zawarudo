@@ -4,7 +4,7 @@
   "tags": ["wmcp", "lewm", "operations"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "5s",
   "time": { "from": "now-30m", "to": "now" },
   "links": [
@@ -64,10 +64,10 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Validation errors in last 15m",
+      "title": "Errors in last 15m",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "expr": "sum(increase(wmcp_input_validation_errors_total{operation=~\"$operation\"}[15m]))", "legendFormat": "errors" }
+        { "expr": "sum(increase(wmcp_request_errors_total{operation=~\"$operation\"}[15m])) OR on() vector(0)", "legendFormat": "errors" }
       ],
       "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 }
     },
@@ -171,13 +171,103 @@
     },
     {
       "id": 12,
+      "type": "stat",
+      "title": "Service readiness",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max(wmcp_service_ready)", "legendFormat": "ready" }
+      ],
+      "gridPos": { "x": 0, "y": 28, "w": 6, "h": 4 }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "In-flight requests",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(wmcp_inflight_requests{operation=~\"$operation\"}) OR on() vector(0)", "legendFormat": "in flight" }
+      ],
+      "gridPos": { "x": 6, "y": 28, "w": 6, "h": 4 }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Error rate",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(wmcp_request_errors_total{operation=~\"$operation\"}[5m])) OR on() vector(0)", "legendFormat": "errors/s" }
+      ],
+      "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Serialization p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_serialize_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Request errors by operation and code",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(wmcp_request_errors_total{operation=~\"$operation\"}[5m])) by (operation,code)",
+          "legendFormat": "{{operation}} {{code}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 32, "w": 8, "h": 8 }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Validation and serialization p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_validation_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "validate {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_serialize_latency_seconds_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "serialize {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 8, "y": 32, "w": 8, "h": 8 }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Batch size p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_batch_size_bucket{operation=~\"$operation\"}[5m])) by (le,operation))",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "gridPos": { "x": 16, "y": 32, "w": 8, "h": 8 }
+    },
+    {
+      "id": 19,
       "type": "traces",
       "title": "Recent traces in Tempo",
       "datasource": { "type": "tempo", "uid": "tempo" },
       "targets": [
         { "query": "{ .service.name = \"wmcp-jepa-service\" }", "queryType": "traceql" }
       ],
-      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 8 }
+      "gridPos": { "x": 0, "y": 40, "w": 24, "h": 8 }
     }
   ]
 }

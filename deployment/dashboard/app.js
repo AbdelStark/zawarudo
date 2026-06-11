@@ -27,7 +27,11 @@ function initElements() {
     "refresh-button",
     "metric-total",
     "metric-rate",
+    "metric-inflight",
+    "metric-error-rate",
     "metric-p95",
+    "metric-compute",
+    "metric-queue",
     "metric-errors",
     "payload-mode",
     "operation-select",
@@ -44,6 +48,7 @@ function initElements() {
     "payload-editor",
     "chart-rate",
     "chart-latency",
+    "chart-errors",
     "operation-table",
     "metrics-age",
     "response-log",
@@ -80,6 +85,13 @@ function formatPerMinute(value) {
   if (!Number.isFinite(value)) return "0/min";
   if (value < 1) return `${value.toFixed(2)}/min`;
   return `${value.toFixed(1)}/min`;
+}
+
+function formatWorkload(row) {
+  const parts = [];
+  if (Number.isFinite(row.candidates)) parts.push(`S${Math.round(row.candidates)}`);
+  if (Number.isFinite(row.horizon)) parts.push(`T${Math.round(row.horizon)}`);
+  return parts.length ? parts.join(" / ") : "n/a";
 }
 
 function requestId(operation, seed) {
@@ -365,7 +377,7 @@ function renderOperationTable(rows) {
   container.replaceChildren();
   const header = document.createElement("div");
   header.className = "op-row";
-  header.innerHTML = "<span>Operation</span><span>Rate</span><span>p95</span><span>compute</span>";
+  header.innerHTML = "<span>Operation</span><span>Rate</span><span>Error</span><span>p95</span><span>compute</span><span>queue</span><span>workload</span>";
   container.appendChild(header);
   ["score", "plan", "rollout", "encode"].forEach((operation) => {
     const row = rows.get(operation) || {};
@@ -374,8 +386,11 @@ function renderOperationTable(rows) {
     element.innerHTML = `
       <strong>${operation}</strong>
       <span>${formatPerMinute((row.rate || 0) * 60)}</span>
+      <span>${formatPerMinute((row.errorRate || 0) * 60)}</span>
       <span>${formatSeconds(row.latency)}</span>
       <span>${formatSeconds(row.compute)}</span>
+      <span>${formatSeconds(row.queue)}</span>
+      <span>${formatWorkload(row)}</span>
     `;
     container.appendChild(element);
   });
@@ -386,37 +401,62 @@ async function refreshMetrics() {
     const [
       total,
       rate,
+      inflight,
+      errorRate,
       errors,
       p95,
       compute,
+      queue,
       rateByOperation,
+      errorsByOperation,
       p95ByOperation,
       computeByOperation,
+      queueByOperation,
+      candidatesByOperation,
+      horizonByOperation,
       rateSeries,
       latencySeries,
+      errorSeries,
     ] = await Promise.all([
       promQuery("sum(increase(wmcp_requests_total[15m]))"),
       promQuery("sum(rate(wmcp_requests_total[2m]))"),
+      promQuery("sum(wmcp_inflight_requests) OR on() vector(0)"),
+      promQuery("sum(rate(wmcp_request_errors_total[5m])) OR on() vector(0)"),
       promQuery("sum(increase(wmcp_input_validation_errors_total[15m]))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le))"),
+      promQuery("histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket[5m])) by (le))"),
       promQuery("sum(rate(wmcp_requests_total[2m])) by (operation)"),
+      promQuery("sum(rate(wmcp_request_errors_total[5m])) by (operation)"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le, operation))"),
+      promQuery("histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket[5m])) by (le, operation))"),
+      promQuery("histogram_quantile(0.95, sum(rate(wmcp_candidate_count_bucket[5m])) by (le, operation))"),
+      promQuery("histogram_quantile(0.95, sum(rate(wmcp_rollout_horizon_bucket[5m])) by (le, operation))"),
       promRange("sum(rate(wmcp_requests_total[1m]))"),
       promRange("histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le))"),
+      promRange("sum(rate(wmcp_request_errors_total[1m])) OR on() vector(0)"),
     ]);
     els["metric-total"].textContent = formatCount(firstValue(total));
     els["metric-rate"].textContent = formatRate(firstValue(rate));
+    els["metric-inflight"].textContent = formatCount(firstValue(inflight));
+    els["metric-error-rate"].textContent = formatRate(firstValue(errorRate));
     els["metric-p95"].textContent = formatSeconds(firstValue(p95));
+    els["metric-compute"].textContent = formatSeconds(firstValue(compute));
+    els["metric-queue"].textContent = formatSeconds(firstValue(queue));
     els["metric-errors"].textContent = formatCount(firstValue(errors));
     els["metrics-age"].textContent = new Date().toLocaleTimeString();
     drawSparkline(els["chart-rate"], rateSeries, "#24746f");
     drawSparkline(els["chart-latency"], latencySeries, "#b65f3b");
+    drawSparkline(els["chart-errors"], errorSeries, "#b3384b");
     renderOperationTable(mergeMaps(
       vectorMap(rateByOperation, "operation", "rate"),
+      vectorMap(errorsByOperation, "operation", "errorRate"),
       vectorMap(p95ByOperation, "operation", "latency"),
       vectorMap(computeByOperation, "operation", "compute"),
+      vectorMap(queueByOperation, "operation", "queue"),
+      vectorMap(candidatesByOperation, "operation", "candidates"),
+      vectorMap(horizonByOperation, "operation", "horizon"),
     ));
   } catch (error) {
     els["metrics-age"].textContent = "metrics unavailable";

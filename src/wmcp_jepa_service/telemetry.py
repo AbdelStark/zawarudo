@@ -13,10 +13,13 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Any, Iterator
 
 from opentelemetry import trace
+from opentelemetry.context import Context
+from opentelemetry.propagate import extract
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -95,11 +98,27 @@ def get_tracer() -> trace.Tracer:
     return trace.get_tracer(_TRACER_NAME)
 
 
+def extract_trace_context(
+    trace_fields: Mapping[str, Any] | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> Context | None:
+    """Build an OTel context from W3C trace fields without putting request IDs in labels."""
+    carrier: dict[str, str] = {}
+    for source in (headers, trace_fields):
+        if not source:
+            continue
+        for key in ("traceparent", "tracestate"):
+            value = source.get(key)
+            if isinstance(value, str) and value:
+                carrier[key] = value
+    return extract(carrier) if carrier else None
+
+
 @contextmanager
-def span(name: str, **attributes: Any) -> Iterator[Span]:
+def span(name: str, *, context: Context | None = None, **attributes: Any) -> Iterator[Span]:
     """Start ``name`` as the current span, setting non-None attributes."""
     tracer = get_tracer()
-    with tracer.start_as_current_span(name) as current:
+    with tracer.start_as_current_span(name, context=context) as current:
         for key, value in attributes.items():
             if value is not None:
                 current.set_attribute(key, value)

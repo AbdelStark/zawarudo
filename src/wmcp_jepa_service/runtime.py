@@ -6,8 +6,9 @@ import time
 from typing import Any, Dict, Protocol
 
 from . import telemetry
-from .schemas import ModelMetadata, RequestEnvelope, ResponseEnvelope
 from .observability import MODEL_COMPUTE, MODEL_LOADED, PLANNER_ITERATIONS
+from .runtime_logging import backend_operation, log_backend_ready, log_mock_backend_warning
+from .schemas import ModelMetadata, RequestEnvelope, ResponseEnvelope
 
 
 class WorldModelBackend(Protocol):
@@ -31,6 +32,14 @@ class MockWorldModelBackend:
         self.revision = revision
         self.backend = backend
         MODEL_LOADED.labels(model_id, revision, backend).set(1)
+        log_mock_backend_warning(backend=backend, model_id=model_id, revision=revision)
+        log_backend_ready(
+            backend=backend,
+            model_id=model_id,
+            revision=revision,
+            device="cpu",
+            synthetic_outputs=True,
+        )
 
     def metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -54,102 +63,157 @@ class MockWorldModelBackend:
         return tuple(int(x) for x in shape)  # type: ignore[return-value]
 
     async def encode(self, request: RequestEnvelope) -> ResponseEnvelope:
-        start = time.perf_counter()
-        with telemetry.span("wmcp.model.encode"):
-            await asyncio.sleep(0.002)
-        MODEL_COMPUTE.labels(self.model_id, "encode", self.backend).observe(time.perf_counter() - start)
-        return ResponseEnvelope(
-            request_id=request.request_id,
-            operation="encode",
-            model=self.model_id,
-            model_revision=self.revision,
-            outputs={
-                "latents": {
-                    "kind": "tensor",
-                    "encoding": "inline",
-                    "dtype": "float32",
-                    "shape": [1, 3, 192],
-                    "layout": "B,H,D",
-                    "data": [[[0.0] * 192 for _ in range(3)]],
-                }
-            },
-            diagnostics={"mock": True},
-        )
+        with backend_operation(
+            request,
+            backend=self.backend,
+            model_id=self.model_id,
+            revision=self.revision,
+            synthetic_outputs=True,
+        ) as log_fields:
+            start = time.perf_counter()
+            with telemetry.span("wmcp.model.encode"):
+                await asyncio.sleep(0.002)
+            MODEL_COMPUTE.labels(self.model_id, "encode", self.backend).observe(time.perf_counter() - start)
+            log_fields["output.latents_shape"] = [1, 3, 192]
+            return ResponseEnvelope(
+                request_id=request.request_id,
+                operation="encode",
+                model=self.model_id,
+                model_revision=self.revision,
+                outputs={
+                    "latents": {
+                        "kind": "tensor",
+                        "encoding": "inline",
+                        "dtype": "float32",
+                        "shape": [1, 3, 192],
+                        "layout": "B,H,D",
+                        "data": [[[0.0] * 192 for _ in range(3)]],
+                    }
+                },
+                diagnostics={"mock": True},
+            )
 
     async def predict(self, request: RequestEnvelope) -> ResponseEnvelope:
         return await self.encode(request)
 
     async def rollout(self, request: RequestEnvelope) -> ResponseEnvelope:
-        with telemetry.span("wmcp.preprocess", **{"wmcp.operation": "rollout"}):
-            b, s, t, _a = self._shape_from_action_candidates(request)
-        start = time.perf_counter()
-        with telemetry.span("wmcp.model.rollout", **{"wmcp.candidate_count": s, "wmcp.horizon": t}):
-            await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
-        MODEL_COMPUTE.labels(self.model_id, "rollout", self.backend).observe(time.perf_counter() - start)
-        return ResponseEnvelope(
-            request_id=request.request_id,
-            operation="rollout",
-            model=self.model_id,
-            model_revision=self.revision,
-            outputs={
-                "predicted_latents": {
-                    "kind": "tensor",
-                    "encoding": "uri",
-                    "dtype": "float32",
-                    "shape": [b, s, t, 192],
-                    "layout": "B,S,T,D",
-                    "uri": f"memory://{request.request_id}/predicted_latents.npy",
-                }
-            },
-            diagnostics={"mock": True, "candidate_count": s, "horizon": t},
-        )
+        with backend_operation(
+            request,
+            backend=self.backend,
+            model_id=self.model_id,
+            revision=self.revision,
+            synthetic_outputs=True,
+        ) as log_fields:
+            with telemetry.span("wmcp.preprocess", **{"wmcp.operation": "rollout"}):
+                b, s, t, _a = self._shape_from_action_candidates(request)
+            start = time.perf_counter()
+            with telemetry.span("wmcp.model.rollout", **{"wmcp.candidate_count": s, "wmcp.horizon": t}):
+                await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
+            MODEL_COMPUTE.labels(self.model_id, "rollout", self.backend).observe(time.perf_counter() - start)
+            log_fields["output.predicted_latents_shape"] = [b, s, t, 192]
+            return ResponseEnvelope(
+                request_id=request.request_id,
+                operation="rollout",
+                model=self.model_id,
+                model_revision=self.revision,
+                outputs={
+                    "predicted_latents": {
+                        "kind": "tensor",
+                        "encoding": "uri",
+                        "dtype": "float32",
+                        "shape": [b, s, t, 192],
+                        "layout": "B,S,T,D",
+                        "uri": f"memory://{request.request_id}/predicted_latents.npy",
+                    }
+                },
+                diagnostics={"mock": True, "candidate_count": s, "horizon": t},
+            )
 
     async def score(self, request: RequestEnvelope) -> ResponseEnvelope:
-        with telemetry.span("wmcp.preprocess", **{"wmcp.operation": "score"}):
-            b, s, t, _a = self._shape_from_action_candidates(request)
-        start = time.perf_counter()
-        with telemetry.span("wmcp.model.score", **{"wmcp.candidate_count": s, "wmcp.horizon": t}):
-            await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
-            rng = random.Random(request.parameters.get("seed", 0))
-            costs = [[rng.random() for _ in range(s)] for _ in range(b)]
-            best = [min(range(s), key=lambda i: costs[row][i]) for row in range(b)]
-        MODEL_COMPUTE.labels(self.model_id, "score", self.backend).observe(time.perf_counter() - start)
-        return ResponseEnvelope(
-            request_id=request.request_id,
-            operation="score",
-            model=self.model_id,
-            model_revision=self.revision,
-            outputs={
-                "costs": {"kind": "tensor", "encoding": "inline", "dtype": "float32", "shape": [b, s], "layout": "B,S", "data": costs},
-                "best_index": best,
-                "cost_statistics": {"min": min(min(row) for row in costs), "max": max(max(row) for row in costs)},
-            },
-            diagnostics={"mock": True, "candidate_count": s, "horizon": t},
-        )
+        with backend_operation(
+            request,
+            backend=self.backend,
+            model_id=self.model_id,
+            revision=self.revision,
+            synthetic_outputs=True,
+        ) as log_fields:
+            with telemetry.span("wmcp.preprocess", **{"wmcp.operation": "score"}):
+                b, s, t, _a = self._shape_from_action_candidates(request)
+            start = time.perf_counter()
+            with telemetry.span("wmcp.model.score", **{"wmcp.candidate_count": s, "wmcp.horizon": t}):
+                await asyncio.sleep(min(0.05, 0.001 + s * t * 0.000001))
+                rng = random.Random(request.parameters.get("seed", 0))
+                costs = [[rng.random() for _ in range(s)] for _ in range(b)]
+                best = [min(range(s), key=lambda i: costs[row][i]) for row in range(b)]
+            MODEL_COMPUTE.labels(self.model_id, "score", self.backend).observe(time.perf_counter() - start)
+            log_fields["output.costs_shape"] = [b, s]
+            log_fields["output.best_index"] = best
+            return ResponseEnvelope(
+                request_id=request.request_id,
+                operation="score",
+                model=self.model_id,
+                model_revision=self.revision,
+                outputs={
+                    "costs": {
+                        "kind": "tensor",
+                        "encoding": "inline",
+                        "dtype": "float32",
+                        "shape": [b, s],
+                        "layout": "B,S",
+                        "data": costs,
+                    },
+                    "best_index": best,
+                    "cost_statistics": {"min": min(min(row) for row in costs), "max": max(max(row) for row in costs)},
+                },
+                diagnostics={"mock": True, "candidate_count": s, "horizon": t},
+            )
 
     async def plan(self, request: RequestEnvelope) -> ResponseEnvelope:
-        params: Dict[str, Any] = request.parameters
-        b = 1
-        horizon = int(params.get("horizon", 16))
-        action_dim = 10
-        iterations = int(params.get("iterations", 5))
-        start = time.perf_counter()
-        with telemetry.span("wmcp.model.plan", **{"wmcp.planner_iterations": iterations, "wmcp.horizon": horizon}):
-            rng = random.Random(params.get("seed", 0))
-            best_cost_by_iteration = [1.0 / (i + 1) for i in range(iterations)]
-            sequence = [[[rng.uniform(-1, 1) for _ in range(action_dim)] for _ in range(horizon)] for _ in range(b)]
-        MODEL_COMPUTE.labels(self.model_id, "plan", self.backend).observe(time.perf_counter() - start)
-        PLANNER_ITERATIONS.labels(self.model_id, "plan").observe(iterations)
-        return ResponseEnvelope(
-            request_id=request.request_id,
-            operation="plan",
-            model=self.model_id,
-            model_revision=self.revision,
-            outputs={
-                "best_action_sequence": {"kind": "tensor", "encoding": "inline", "dtype": "float32", "shape": [b, horizon, action_dim], "layout": "B,T,A", "data": sequence},
-                "first_action": {"kind": "tensor", "encoding": "inline", "dtype": "float32", "shape": [b, action_dim], "layout": "B,A", "data": [sequence[0][0]]},
-                "best_cost": [best_cost_by_iteration[-1]],
-                "planner_diagnostics": {"iterations": iterations, "best_cost_by_iteration": best_cost_by_iteration},
-            },
-            diagnostics={"mock": True},
-        )
+        with backend_operation(
+            request,
+            backend=self.backend,
+            model_id=self.model_id,
+            revision=self.revision,
+            synthetic_outputs=True,
+        ) as log_fields:
+            params: Dict[str, Any] = request.parameters
+            b = 1
+            horizon = int(params.get("horizon", 16))
+            action_dim = 10
+            iterations = int(params.get("iterations", 5))
+            start = time.perf_counter()
+            with telemetry.span("wmcp.model.plan", **{"wmcp.planner_iterations": iterations, "wmcp.horizon": horizon}):
+                rng = random.Random(params.get("seed", 0))
+                best_cost_by_iteration = [1.0 / (i + 1) for i in range(iterations)]
+                sequence = [[[rng.uniform(-1, 1) for _ in range(action_dim)] for _ in range(horizon)] for _ in range(b)]
+            MODEL_COMPUTE.labels(self.model_id, "plan", self.backend).observe(time.perf_counter() - start)
+            PLANNER_ITERATIONS.labels(self.model_id, "plan").observe(iterations)
+            log_fields["output.action_sequence_shape"] = [b, horizon, action_dim]
+            log_fields["planner.iterations"] = iterations
+            return ResponseEnvelope(
+                request_id=request.request_id,
+                operation="plan",
+                model=self.model_id,
+                model_revision=self.revision,
+                outputs={
+                    "best_action_sequence": {
+                        "kind": "tensor",
+                        "encoding": "inline",
+                        "dtype": "float32",
+                        "shape": [b, horizon, action_dim],
+                        "layout": "B,T,A",
+                        "data": sequence,
+                    },
+                    "first_action": {
+                        "kind": "tensor",
+                        "encoding": "inline",
+                        "dtype": "float32",
+                        "shape": [b, action_dim],
+                        "layout": "B,A",
+                        "data": [sequence[0][0]],
+                    },
+                    "best_cost": [best_cost_by_iteration[-1]],
+                    "planner_diagnostics": {"iterations": iterations, "best_cost_by_iteration": best_cost_by_iteration},
+                },
+                diagnostics={"mock": True},
+            )

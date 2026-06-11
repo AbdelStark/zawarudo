@@ -4,7 +4,7 @@
   "tags": ["wmcp", "traffic", "demo"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "5s",
   "time": { "from": "now-30m", "to": "now" },
   "links": [
@@ -104,11 +104,11 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Error stimulation",
+      "title": "Error stimulation by stable code",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(wmcp_input_validation_errors_total[5m])) by (operation,code)",
+          "expr": "sum(rate(wmcp_request_errors_total[5m])) by (operation,code)",
           "legendFormat": "{{operation}} {{code}}"
         },
         {
@@ -120,6 +120,41 @@
     },
     {
       "id": 8,
+      "type": "timeseries",
+      "title": "Batch size and in-flight work",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_batch_size_bucket[5m])) by (le,operation))",
+          "legendFormat": "batch p95 {{operation}}"
+        },
+        {
+          "expr": "sum(wmcp_inflight_requests) by (operation)",
+          "legendFormat": "inflight {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Validation and serialization p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_validation_latency_seconds_bucket[5m])) by (le,operation))",
+          "legendFormat": "validate {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wmcp_serialize_latency_seconds_bucket[5m])) by (le,operation))",
+          "legendFormat": "serialize {{operation}}"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 }
+    },
+    {
+      "id": 10,
       "type": "table",
       "title": "Endpoint totals by operation and status",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -130,7 +165,7 @@
           "instant": true
         }
       ],
-      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 }
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 8 }
     }
   ]
 }

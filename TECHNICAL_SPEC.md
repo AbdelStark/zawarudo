@@ -396,6 +396,8 @@ Prometheus metric names:
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `wmcp_requests_total` | Counter | `model`, `operation`, `status` | Request count. |
+| `wmcp_inflight_requests` | Gauge | `model`, `operation` | Requests currently being handled. |
+| `wmcp_request_errors_total` | Counter | `model`, `operation`, `code` | Stable error-code counts across validation, HTTP, and internal failures. |
 | `wmcp_request_latency_seconds` | Histogram | `model`, `operation`, `status` | End-to-end latency. |
 | `wmcp_validation_latency_seconds` | Histogram | `operation` | Validation time. |
 | `wmcp_preprocess_latency_seconds` | Histogram | `model`, `operation` | Decode/preprocess time. |
@@ -407,6 +409,7 @@ Prometheus metric names:
 | `wmcp_rollout_horizon` | Histogram | `model`, `operation` | Rollout horizon. |
 | `wmcp_planner_iterations` | Histogram | `model`, `planner` | Planner iteration count. |
 | `wmcp_model_loaded` | Gauge | `model`, `revision` | 1 if loaded. |
+| `wmcp_service_ready` | Gauge | `model`, `backend` | 1 if the backend is loaded and the service is ready. |
 | `wmcp_model_load_seconds` | Gauge/Histogram | `model`, `revision` | Load time. |
 | `wmcp_input_validation_errors_total` | Counter | `operation`, `code` | Validation errors. |
 | `wmcp_gpu_oom_total` | Counter | `model` | OOM events. |

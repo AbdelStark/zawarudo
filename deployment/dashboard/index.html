@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WMCP LeWM Console</title>
+    <title>WMCP LeWM Operations Console</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <main class="shell">
       <header class="masthead">
         <div>
-          <p class="eyebrow">WMCP demo console</p>
-          <h1>LeWM request and telemetry deck</h1>
+          <p class="eyebrow">WMCP operations console</p>
+          <h1>LeWM serving telemetry</h1>
         </div>
         <nav class="links" aria-label="Demo services">
           <a href="http://localhost:3000/d/wmcp-ops/wmcp-lewm-operations" target="_blank" rel="noreferrer">Grafana ops</a>
@@ -50,8 +50,24 @@
           <strong id="metric-rate">0/s</strong>
         </article>
         <article>
+          <span>In flight</span>
+          <strong id="metric-inflight">0</strong>
+        </article>
+        <article>
+          <span>Error rate</span>
+          <strong id="metric-error-rate">0/s</strong>
+        </article>
+        <article>
           <span>p95 latency</span>
           <strong id="metric-p95">n/a</strong>
+        </article>
+        <article>
+          <span>p95 compute</span>
+          <strong id="metric-compute">n/a</strong>
+        </article>
+        <article>
+          <span>p95 queue</span>
+          <strong id="metric-queue">n/a</strong>
         </article>
         <article>
           <span>Validation errors</span>
@@ -128,6 +144,10 @@
             <div>
               <div class="chart-title">p95 latency</div>
               <svg id="chart-latency" viewBox="0 0 320 84" role="img" aria-label="Latency sparkline"></svg>
+            </div>
+            <div>
+              <div class="chart-title">Error rate</div>
+              <svg id="chart-errors" viewBox="0 0 320 84" role="img" aria-label="Error rate sparkline"></svg>
             </div>
           </div>
           <div id="operation-table" class="operation-table"></div>

@@ -161,7 +161,7 @@ SLOs without hardware and shape context are invalid.
 A production dashboard SHOULD include:
 
 1. Request rate by operation.
-2. Error rate by code.
+2. Error rate by stable code from `wmcp_request_errors_total`.
 3. p50/p95/p99 request latency by operation.
 4. Queue wait and batch size.
 5. Model compute time by operation.
@@ -170,6 +170,10 @@ A production dashboard SHOULD include:
 8. GPU utilization and memory.
 9. Model load/readiness status.
 10. Top validation failures.
+
+Services SHOULD expose in-flight request and readiness gauges (`wmcp_inflight_requests`,
+`wmcp_service_ready`) so local dashboards can distinguish idle, saturated, and unavailable states
+without relying on raw logs.
 
 ## Alert recommendations
 

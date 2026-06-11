@@ -17,6 +17,26 @@ REQUEST_LATENCY = Histogram(
     "End-to-end WMCP request latency",
     ["model", "operation", "status"],
 )
+REQUEST_IN_FLIGHT = Gauge(
+    "wmcp_inflight_requests",
+    "WMCP requests currently being handled",
+    ["model", "operation"],
+)
+REQUEST_ERRORS = Counter(
+    "wmcp_request_errors_total",
+    "WMCP requests that ended with an error code",
+    ["model", "operation", "code"],
+)
+VALIDATION_LATENCY = Histogram(
+    "wmcp_validation_latency_seconds",
+    "WMCP envelope validation latency",
+    ["operation"],
+)
+SERIALIZE_LATENCY = Histogram(
+    "wmcp_serialize_latency_seconds",
+    "WMCP response serialization latency",
+    ["operation"],
+)
 MODEL_COMPUTE = Histogram(
     "wmcp_model_compute_seconds",
     "Model compute latency",
@@ -39,6 +59,12 @@ ROLLOUT_HORIZON = Histogram(
     ["model", "operation"],
     buckets=(1, 2, 4, 8, 16, 32, 64, 128),
 )
+BATCH_SIZE = Histogram(
+    "wmcp_batch_size",
+    "Observed request batch size",
+    ["model", "operation"],
+    buckets=(1, 2, 4, 8, 16, 32, 64, 128),
+)
 PLANNER_ITERATIONS = Histogram(
     "wmcp_planner_iterations",
     "Planner iterations per plan request",
@@ -54,6 +80,11 @@ VALIDATION_ERRORS = Counter(
     "wmcp_input_validation_errors_total",
     "Input validation errors",
     ["operation", "code"],
+)
+SERVICE_READY = Gauge(
+    "wmcp_service_ready",
+    "1 when the service has loaded a backend and is ready to serve",
+    ["model", "backend"],
 )
 
 # Optional GPU metrics — populated best-effort when torch + CUDA are available (RFC-0005).
