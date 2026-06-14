@@ -116,7 +116,7 @@ async def _handle_body(
     with REQUEST_IN_FLIGHT.labels(model_id, operation).track_inprogress():
         with telemetry.span(
             "wmcp.request",
-            context=trace_context,
+            trace_context,
             **{
                 "wmcp.operation": operation,
                 "wmcp.model": model_id,

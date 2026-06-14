@@ -115,7 +115,7 @@ def extract_trace_context(
 
 
 @contextmanager
-def span(name: str, *, context: Context | None = None, **attributes: Any) -> Iterator[Span]:
+def span(name: str, context: Context | None = None, /, **attributes: Any) -> Iterator[Span]:
     """Start ``name`` as the current span, setting non-None attributes."""
     tracer = get_tracer()
     with tracer.start_as_current_span(name, context=context) as current:

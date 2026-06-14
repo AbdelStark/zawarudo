@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import random
 import time
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 from . import telemetry
 from .observability import MODEL_COMPUTE, MODEL_LOADED, PLANNER_ITERATIONS
@@ -176,7 +176,7 @@ class MockWorldModelBackend:
             revision=self.revision,
             synthetic_outputs=True,
         ) as log_fields:
-            params: Dict[str, Any] = request.parameters
+            params: dict[str, Any] = request.parameters
             b = 1
             horizon = int(params.get("horizon", 16))
             action_dim = 10

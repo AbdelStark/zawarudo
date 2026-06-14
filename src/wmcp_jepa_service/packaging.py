@@ -83,7 +83,7 @@ def pusht_manifest(
     artifact_uri: str = "https://huggingface.co/quentinll/lewm-pusht",
     artifact_revision: str = "unpinned",
     framework: str = "pytorch",
-    runtime_class: str = "wmcp_jepa_service.runtime.LeWMRuntime",
+    runtime_class: str = "wmcp_jepa_service.runtime_lewm.LeWMRuntime",
     config: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble a manifest conforming to ``schemas/model-manifest.schema.json`` (+ a ``weights`` block)."""

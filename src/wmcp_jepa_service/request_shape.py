@@ -57,7 +57,8 @@ def _action_candidate_shape(inputs: dict[str, Any]) -> tuple[int | None, int | N
     shape = _tensor_shape(action)
     if len(shape) != 4:
         return None, None, None, None
-    return tuple(_positive_int(value) for value in shape)  # type: ignore[return-value]
+    b, s, t, a = shape
+    return _positive_int(b), _positive_int(s), _positive_int(t), _positive_int(a)
 
 
 def _batch_from_inputs(inputs: dict[str, Any]) -> int | None:
