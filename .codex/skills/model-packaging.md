@@ -57,4 +57,3 @@ boundary around model loading.
 — schemas/model-manifest.schema.json · LEWM_INTEGRATION_GUIDE.md §2 · rfc/0004-model-packaging-runtime.md
 — src/wmcp_jepa_service/schemas.py (ModelMetadata) · PRD.md (non-goals)
 </references>
-</content>

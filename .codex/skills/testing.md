@@ -69,4 +69,3 @@ def test_score_endpoint():
 <references>
 — tests/test_contracts.py · examples/*.json · LEWM_INTEGRATION_GUIDE.md §4 (golden validation)
 </references>
-</content>

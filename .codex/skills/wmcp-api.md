@@ -76,4 +76,3 @@ Minimal score request (also `examples/score_request.json`, `tests/test_contracts
 — api/openapi.yaml, schemas/wmcp-message.schema.json: external contract mirrors
 — examples/*.json: canonical request/response fixtures
 </references>
-</content>

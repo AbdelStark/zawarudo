@@ -54,4 +54,3 @@ Ship the service locally (Compose) and to a cluster (k8s / KServe) without chang
 <references>
 — Dockerfile · deployment/docker-compose.yaml · deployment/k8s/* · rfc/0004-model-packaging-runtime.md
 </references>
-</content>

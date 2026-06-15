@@ -2,8 +2,9 @@
 wmcp-jepa-service (`wmcp-jepa-serve`): a production inference backend that serves JEPA-style,
 action-conditioned world models through a WMCP-aligned HTTP API. First target: a Push-T
 LeWorldModel checkpoint. Operations: encode, predict, rollout, score, plan.
-Status: v0.1.0 — API + observability + deployment scaffolding complete; runtime is a MOCK backend.
-The primary near-term task is replacing the mock with a real `LeWMRuntime`.
+Status: v0.1.0 — API + observability + deployment complete, plus a real `LeWMRuntime` (the `lewm`
+backend) serving the Push-T checkpoint on CPU/GPU. A deterministic `MockWorldModelBackend` (the default
+`mock` backend) is kept for contract tests and weightless demos; `WMCP_BACKEND` selects between them.
 </identity>
 
 <stack>
@@ -15,7 +16,7 @@ The primary near-term task is replacing the mock with a real `LeWMRuntime`.
 | Metrics      | prometheus-client       | 0.20+      | `/metrics` endpoint                                |
 | Tracing      | opentelemetry-* (sdk/otlp) | 1.25+   | OTLP exporter                                      |
 | Runtime (opt)| ray[serve]              | 2.30+      | extra `ray`; phase-2 serving core (ADR-0001)      |
-| Model (opt)  | torch, torchvision      | 2.3+ / 0.18+ | extra `torch`; needed only for real LeWM backend |
+| Model (real) | torch, transformers, einops, safetensors | 2.3+ | extra `lewm`; the real Push-T backend (vendored model) |
 | Package mgr  | uv                      | (uv.lock)  | `uv.lock` is the source of truth                  |
 | Build        | setuptools (src-layout) | 69+        | package discovered under `src/`                   |
 | Tests        | pytest + httpx          | 8.2+       | extra `dev`                                        |
@@ -26,7 +27,14 @@ The primary near-term task is replacing the mock with a real `LeWMRuntime`.
 ```
 src/wmcp_jepa_service/        # the only Python package [agent: create/modify with care]
 ├── server.py                 #   FastAPI app, routes, _handle() dispatch, KServe v2 adapter
-├── runtime.py                #   WorldModelBackend Protocol + MockWorldModelBackend (← replace)
+├── runtime.py                #   WorldModelBackend Protocol + MockWorldModelBackend (default `mock`)
+├── runtime_lewm.py           #   LeWMRuntime — the real `lewm` backend (decode → inference → CEM plan)
+├── lewm_model.py             #   vendored LeWorldModel (ViT encoder + predictor); torch/transformers/einops
+├── model_package.py          #   trusted-package loader: checksums, manifest, shapes, safe weight load
+├── packaging.py              #   author side — build synthetic/real model packages + checksums
+├── request_shape.py          #   low-cardinality workload dims (batch/candidates/horizon) for metrics
+├── runtime_logging.py        #   structured backend-operation logging context managers
+├── telemetry.py              #   OTel tracing setup + JSON log formatter + span() helper
 ├── schemas.py                #   Pydantic API contract (envelopes, TensorRef) [GATED — see boundaries]
 ├── observability.py          #   Prometheus metric objects + observe_latency()
 └── __init__.py               #   __version__
@@ -77,9 +85,11 @@ Every request is a `RequestEnvelope`; every success is a `ResponseEnvelope`; err
 
 <config>
 Env vars (read in `server.py`; defaults shown):
-`WMCP_MODEL_ID=lewm-pusht` · `WMCP_BACKEND=mock` · `WMCP_OTEL_EXPORTER_OTLP_ENDPOINT` ·
-`WMCP_ENABLE_PROMETHEUS=true` · `WMCP_LOG_LEVEL=INFO`. The active backend is selected in code today
-(MockWorldModelBackend); wiring `WMCP_BACKEND` to a real runtime is part of the LeWM integration.
+`WMCP_MODEL_ID=lewm-pusht` · `WMCP_BACKEND=mock` (`mock` | `lewm`) · `WMCP_OTEL_EXPORTER_OTLP_ENDPOINT` ·
+`WMCP_ENABLE_PROMETHEUS=true` · `WMCP_LOG_LEVEL=INFO`. The `lewm` backend also reads
+`WMCP_MODEL_PACKAGE=/models/lewm-pusht`, `WMCP_HF_DEVICE=cpu` (`cpu` | `cuda`), and
+`WMCP_LATENT_STORE=.artifacts/latents`. `server.py:_make_backend()` selects the backend from
+`WMCP_BACKEND` (the `lewm` path lazy-imports torch/transformers).
 </config>
 
 <conventions>
@@ -92,14 +102,14 @@ Tensors are never raw arrays on the wire — always a `TensorRef` (`encoding` �
 <patterns>
 <do>
 — Add new operations by: (1) extend `WorldModelBackend` Protocol, (2) implement in backend,
-  (3) add route delegating to `_handle(op, model_id, body, backend.<op>)`, (4) add a contract test.
+  (3) add route delegating to `_handle(op, model_id, request, backend.<op>)`, (4) add a contract test.
 — Route all request flow through `_handle()` so metrics/latency/error-mapping stay uniform.
 — Emit `MODEL_COMPUTE` around the actual compute; let `_handle` own `REQUESTS`/`REQUEST_LATENCY`.
 — Keep runtime behind the `WorldModelBackend` Protocol so the API stays runtime-agnostic (ADR-0001).
 — Return latents/large tensors by `uri`, not `inline`, to keep payloads small.
 </do>
 <dont>
-— Don't put model-execution logic in `server.py` — it belongs in a backend in `runtime.py`.
+— Don't put model-execution logic in `server.py` — it belongs in a backend module (`runtime.py` mock, `runtime_lewm.py` real).
 — Don't change envelope shapes in `schemas.py` without updating `api/openapi.yaml`,
   `schemas/*.schema.json`, and the contract tests (they are one contract — GATED).
 — Don't accept model weights or model code from inference request bodies (security; PRD non-goal #6).
@@ -110,14 +120,16 @@ Tensors are never raw arrays on the wire — always a `TensorRef` (`encoding` �
 </conventions>
 
 <workflows>
-<replace_mock_runtime>
-The headline task. Full procedure in skill `runtime-backend`; in brief:
-1. Pin upstream commits (le-wm, stable-worldmodel) per `LEWM_INTEGRATION_GUIDE.md`.
-2. Build a trusted model package (manifest, config, weights, preprocessing, action scaler, checksums).
-3. Implement `LeWMRuntime` satisfying `WorldModelBackend`; load+freeze model, `torch.inference_mode()`.
-4. Golden-validate against upstream `eval.py`: assert cost shape + numerical tolerance.
-5. Wire `WMCP_BACKEND` selection in `server.py`; keep Mock for contract tests.
-</replace_mock_runtime>
+<real_backend>
+The real `LeWMRuntime` (`lewm` backend) lives in `runtime_lewm.py` and serves the Push-T checkpoint.
+Follow this same procedure (skill `runtime-backend`) to update the checkpoint or add a new backend:
+1. Pin upstream commits (le-wm, stable-worldmodel) per `LEWM_INTEGRATION_GUIDE.md` / `scripts/pin_sources.py`.
+2. Build a trusted model package (manifest, config, weights, preprocessing, action scaler, checksums)
+   with `scripts/build_model_package.py` (`packaging.py`).
+3. Implement the backend behind `WorldModelBackend`; load+freeze model, `torch.inference_mode()`.
+4. Golden-validate (`tests/test_golden_lewm.py`): assert cost shape + numerical tolerance vs upstream.
+5. Select it via `WMCP_BACKEND` in `server.py:_make_backend()`; keep Mock as the default contract-test backend.
+</real_backend>
 <add_operation_or_field>
 1. Edit `schemas.py` (GATED — get approval). 2. Mirror in `api/openapi.yaml` + `schemas/*.schema.json`.
 3. Implement in backend + route. 4. Add/extend `tests/test_contracts.py`. 5. `ruff check . && mypy src && pytest -q`.
@@ -149,7 +161,7 @@ state what could break (which consumers/tests), and wait for confirmation.
 | 404 `MODEL_NOT_FOUND` on a valid request  | request `model` ≠ `WMCP_MODEL_ID`      | use `lewm-pusht` or set `WMCP_MODEL_ID`      |
 | 422 `INVALID_ARGUMENT`                     | envelope failed Pydantic validation    | check `TensorRef.encoding` ↔ payload field   |
 | `tensor requires data/data_b64/uri`        | encoding/payload mismatch in `TensorRef`| inline→`data`, base64→`data_b64`, uri→`uri`  |
-| ImportError torch/ray                      | optional extras not installed          | `uv sync --extra torch` / `--extra ray`      |
+| ImportError torch/transformers             | the `lewm` extra isn't installed       | `uv sync --extra lewm` (real-backend deps)   |
 | metrics absent                             | scraping wrong port                    | `/metrics` on :8080                          |
 <recovery>
 1. Read the full error (most contain the fix). 2. Confirm the file/command exists.
@@ -160,14 +172,14 @@ state what could break (which consumers/tests), and wait for confirmation.
 
 <environment>
 Harness: Claude Code (and Codex/agents via symlinked skills). Shell + git available. The service is a
-mock by default — running it needs no GPU or weights. Real backend work needs torch + a model package.
+mock by default — running it needs no GPU or weights. The real `lewm` backend needs the `lewm` extra + a built model package.
 </environment>
 
 <skills>
 Canonical skills in `.codex/skills/` (symlinked at `.claude/skills/`, `.agents/skills/`). Load by reading
 the file when entering its domain. Registry: `.codex/skills/_index.md`.
 — `wmcp-api`: WMCP envelopes, operations, error codes, TensorRef, KServe adapter.
-— `runtime-backend`: implement `WorldModelBackend` / replace the mock with `LeWMRuntime`.
+— `runtime-backend`: implement/extend a `WorldModelBackend` (the real `LeWMRuntime` is in `runtime_lewm.py`).
 — `testing`: contract tests + golden numerical validation against upstream.
 — `observability`: Prometheus metrics, OTel traces, Grafana, metric conventions.
 — `deployment`: Docker Compose, Kubernetes, KServe InferenceService.
@@ -182,11 +194,12 @@ the file when entering its domain. Registry: `.codex/skills/_index.md`.
 2026-06-08 Runtime hidden behind `WorldModelBackend` Protocol — keeps WMCP API independent of engine.
 2026-06-08 WMCP schema is a working draft — upstream WMCP RFC text not yet available; designed to
   refactor into canonical fields (see README "Source limitations").
+2026-06-08 Real `LeWMRuntime` shipped as the `lewm` backend — vendored LeWorldModel (no Hydra/env stack),
+  checksum-verified model package, `torch.inference_mode()`, in-process CEM planner. Mock stays the
+  default contract-test backend; Ray Serve dynamic batching remains phase-2.
 </decisions>
 <lessons>
 — TensorRef on the wire (never raw arrays) keeps payloads typed and lets large latents move by uri.
 — `_handle()` centralizes metrics + error mapping; every operation must go through it.
 </lessons>
 </memory>
-</content>
-</invoke>

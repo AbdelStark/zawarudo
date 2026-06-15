@@ -1,15 +1,16 @@
 ---
 name: runtime-backend
-description: How to implement a WorldModelBackend — and specifically how to replace MockWorldModelBackend with a real LeWMRuntime that loads a pinned Push-T LeWorldModel checkpoint. Activate for any work on runtime.py, model loading, encode/predict/rollout/score/plan compute, torch/Ray integration, device placement, or wiring WMCP_BACKEND. This is the project's headline near-term task.
-prerequisites: torch (extra `torch`); a trusted model package (see model-packaging skill)
+description: How a WorldModelBackend is implemented. The real `LeWMRuntime` (the `lewm` backend) already lives in runtime_lewm.py; this covers how it works and how to update the checkpoint or add another backend. Activate for any work on runtime.py / runtime_lewm.py, model loading, encode/predict/rollout/score/plan compute, torch/transformers integration, device placement, or wiring WMCP_BACKEND.
+prerequisites: the `lewm` extra (torch + transformers + einops + safetensors); a trusted model package (see model-packaging skill)
 ---
 
 # Runtime Backend
 
 <purpose>
 The runtime executes model operations behind the `WorldModelBackend` Protocol so the WMCP API stays
-engine-agnostic (ADR-0001). Today the only backend is `MockWorldModelBackend`. The job is to add a real
-`LeWMRuntime` without changing the API surface.
+engine-agnostic (ADR-0001). Two backends ship: the default `MockWorldModelBackend` (`runtime.py`,
+synthetic outputs for contract tests) and the real `LeWMRuntime` (`runtime_lewm.py`, the `lewm`
+backend on the Push-T checkpoint). Both satisfy the Protocol; adding a backend must not change the API.
 </purpose>
 
 <context>
@@ -28,9 +29,11 @@ engine-agnostic (ADR-0001). Today the only backend is `MockWorldModelBackend`. T
 </context>
 
 <procedure>
+To update the Push-T checkpoint or add a new world-model backend (the real `LeWMRuntime` already
+follows these steps in `runtime_lewm.py`):
 1. Pin upstream commits (le-wm, stable-worldmodel, stable-pretraining) — do not float `main`.
 2. Acquire/convert a trusted model package (see `model-packaging` skill). Never load weights from a request.
-3. Create `LeWMRuntime(WorldModelBackend)` in `runtime.py`:
+3. Implement the backend (e.g. `LeWMRuntime`) in its own module (`runtime_lewm.py`):
    - `__init__`: load pinned model from package path; `.to(device).eval()`; freeze params; load
      preprocessor + action scaler; set `MODEL_LOADED`.
    - each op: decode `TensorRef` inputs → preprocess/normalize → `torch.inference_mode()` compute →
@@ -55,7 +58,7 @@ engine-agnostic (ADR-0001). Today the only backend is `MockWorldModelBackend`. T
 </patterns>
 
 <examples>
-Skeleton (full version in `LEWM_INTEGRATION_GUIDE.md`):
+Skeleton below; the **real, working implementation** is `runtime_lewm.py` (read it first):
 ```python
 class LeWMRuntime:  # satisfies WorldModelBackend
     def __init__(self, package_path: str, device: str = "cuda"):
@@ -84,8 +87,9 @@ class LeWMRuntime:  # satisfies WorldModelBackend
 </troubleshooting>
 
 <references>
+— src/wmcp_jepa_service/runtime_lewm.py: the real `LeWMRuntime` (`lewm` backend) — decode → inference → CEM plan
+— src/wmcp_jepa_service/lewm_model.py: vendored LeWorldModel (ViT encoder + predictor)
 — src/wmcp_jepa_service/runtime.py: Protocol + MockWorldModelBackend (the shape contract to mirror)
-— LEWM_INTEGRATION_GUIDE.md: full LeWMRuntime recipe + perf knobs
+— LEWM_INTEGRATION_GUIDE.md: full integration recipe + perf knobs
 — SOURCES.md, adr/ADR-0001-inference-engine.md: upstream + engine rationale
 </references>
-</content>

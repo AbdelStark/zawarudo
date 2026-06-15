@@ -63,4 +63,3 @@ with observe_latency(MODEL_COMPUTE, model_id, "score", backend):
 — src/wmcp_jepa_service/observability.py · src/wmcp_jepa_service/server.py (`_handle`, `_record_request_shape`)
 — deployment/{prometheus.yaml,otel-collector.yaml,grafana-dashboard.json} · rfc/0003-observability-telemetry.md
 </references>
-</content>

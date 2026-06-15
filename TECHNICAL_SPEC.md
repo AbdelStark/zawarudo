@@ -93,26 +93,24 @@ model-package/
 
 ### Required manifest fields
 
+Required (enforced by `model_package.MANIFEST_REQUIRED_KEYS` against `schemas/model-manifest.schema.json`):
+
+- `schema_version`
 - `model_id`
 - `model_family`
 - `model_type`
 - `source_repository`
-- `source_revision`
 - `artifact_uri`
-- `artifact_revision`
-- `artifact_sha256`
 - `framework`
-- `runtime_class`
+- `runtime` (object; must contain `backend`)
 - `supported_operations`
-- `input_schema`
-- `output_schema`
-- `preprocessing`
-- `action_space`
-- `latent_space`
+- `inputs`
+- `outputs`
 - `limits`
-- `observability_labels`
 
-See `schemas/model-manifest.schema.json`.
+Also carried (optional, used by the loader/profile): `source_revision`, `artifact_revision`, `task`,
+`preprocessing`, `action_space`, `latent_space`, and a `weights` block (`file`, `format`, `tensors`)
+whose tensor shapes are verified on load. See `schemas/model-manifest.schema.json`.
 
 ## 5. Push-T LeWM runtime profile
 
@@ -373,19 +371,16 @@ Return structured WMCP errors:
 }
 ```
 
-Error codes:
+The richer envelope above is the target shape; today the service returns `{detail: {code, message}}`
+(FastAPI `HTTPException`). Error codes **implemented** in `server.py`:
 
-- `INVALID_ARGUMENT`
-- `INVALID_TENSOR_SHAPE`
-- `UNSUPPORTED_OPERATION`
-- `MODEL_NOT_FOUND`
-- `MODEL_NOT_READY`
-- `PAYLOAD_TOO_LARGE`
-- `URI_NOT_ALLOWED`
-- `CHECKSUM_MISMATCH`
-- `TIMEOUT`
-- `GPU_OOM`
-- `INTERNAL`
+- `INVALID_ARGUMENT` (422) — envelope/schema validation failed.
+- `MODEL_NOT_FOUND` (404) — request `model` ≠ `WMCP_MODEL_ID`.
+- `UNSUPPORTED_OPERATION` (400) — operation not in the dispatch table.
+- `GPU_OOM` / `TIMEOUT` / `INTERNAL` (500) — runtime failures, mapped from the raised exception.
+
+Reserved for when validation/limits/packaging enforcement lands (not yet emitted on the wire):
+`INVALID_TENSOR_SHAPE`, `MODEL_NOT_READY`, `PAYLOAD_TOO_LARGE`, `URI_NOT_ALLOWED`, `CHECKSUM_MISMATCH`.
 
 ## 11. Observability specification
 
@@ -396,23 +391,26 @@ Prometheus metric names:
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `wmcp_requests_total` | Counter | `model`, `operation`, `status` | Request count. |
-| `wmcp_inflight_requests` | Gauge | `model`, `operation` | Requests currently being handled. |
-| `wmcp_request_errors_total` | Counter | `model`, `operation`, `code` | Stable error-code counts across validation, HTTP, and internal failures. |
 | `wmcp_request_latency_seconds` | Histogram | `model`, `operation`, `status` | End-to-end latency. |
-| `wmcp_validation_latency_seconds` | Histogram | `operation` | Validation time. |
-| `wmcp_preprocess_latency_seconds` | Histogram | `model`, `operation` | Decode/preprocess time. |
-| `wmcp_queue_wait_seconds` | Histogram | `model`, `operation` | Time waiting for batch/replica. |
-| `wmcp_model_compute_seconds` | Histogram | `model`, `operation` | GPU/model execution time. |
+| `wmcp_inflight_requests` | Gauge | `model`, `operation` | Requests currently being handled. |
+| `wmcp_request_errors_total` | Counter | `model`, `operation`, `code` | Error-code counts across validation, HTTP, and internal failures. |
+| `wmcp_validation_latency_seconds` | Histogram | `operation` | Envelope validation time. |
 | `wmcp_serialize_latency_seconds` | Histogram | `operation` | Response serialization time. |
-| `wmcp_batch_size` | Histogram | `model`, `operation` | Actual batch sizes. |
-| `wmcp_action_candidates` | Histogram | `model`, `operation` | Candidate counts. |
+| `wmcp_model_compute_seconds` | Histogram | `model`, `operation`, `backend` | Model/compute execution time. |
+| `wmcp_queue_wait_seconds` | Histogram | `model`, `operation` | Time between receipt and backend dispatch. |
+| `wmcp_batch_size` | Histogram | `model`, `operation` | Observed request batch size. |
+| `wmcp_candidate_count` | Histogram | `model`, `operation` | Candidate action count. |
 | `wmcp_rollout_horizon` | Histogram | `model`, `operation` | Rollout horizon. |
-| `wmcp_planner_iterations` | Histogram | `model`, `planner` | Planner iteration count. |
-| `wmcp_model_loaded` | Gauge | `model`, `revision` | 1 if loaded. |
-| `wmcp_service_ready` | Gauge | `model`, `backend` | 1 if the backend is loaded and the service is ready. |
-| `wmcp_model_load_seconds` | Gauge/Histogram | `model`, `revision` | Load time. |
-| `wmcp_input_validation_errors_total` | Counter | `operation`, `code` | Validation errors. |
-| `wmcp_gpu_oom_total` | Counter | `model` | OOM events. |
+| `wmcp_planner_iterations` | Histogram | `model`, `operation` | Planner iterations per `plan`. |
+| `wmcp_input_validation_errors_total` | Counter | `operation`, `code` | Input validation errors. |
+| `wmcp_model_loaded` | Gauge | `model`, `revision`, `backend` | 1 when the model is loaded. |
+| `wmcp_service_ready` | Gauge | `model`, `backend` | 1 when the backend is loaded and serving. |
+| `wmcp_gpu_available` | Gauge | `device` | 1 if a CUDA device is available (best-effort). |
+| `wmcp_gpu_memory_used_bytes` | Gauge | `device` | torch-allocated GPU memory (best-effort). |
+
+Planned (not yet emitted): `wmcp_preprocess_latency_seconds` (preprocess is traced, not metered),
+`wmcp_model_load_seconds` (load time is logged), and `wmcp_gpu_oom_total` (GPU OOM surfaces via
+`wmcp_request_errors_total{code="GPU_OOM"}`).
 
 GPU utilization/memory should come from DCGM exporter, NVIDIA tooling, or runtime-specific GPU metrics, then be joined in dashboards by pod/instance.
 
@@ -420,20 +418,17 @@ Metric labels must not include request IDs, user IDs, raw URI paths, or unbounde
 
 ### Tracing
 
-Use W3C `traceparent` propagation. Required spans:
+Use W3C `traceparent` propagation. Implemented spans (the planned subsystems — auth, payload.decode,
+scheduler.enqueue, batch.form, planner.iteration[N] — will add their own once built):
 
 ```text
 wmcp.request
-├── wmcp.auth
 ├── wmcp.validate
-├── wmcp.payload.decode
 ├── wmcp.preprocess
-├── wmcp.scheduler.enqueue
-├── wmcp.batch.form
-├── wmcp.model.encode_goal
+├── wmcp.model.encode
 ├── wmcp.model.rollout
 ├── wmcp.model.score
-├── wmcp.planner.iteration[N]
+├── wmcp.model.plan
 └── wmcp.serialize
 ```
 

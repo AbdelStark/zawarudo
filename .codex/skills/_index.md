@@ -1,6 +1,6 @@
 # Skill Registry — wmcp-jepa-service
 
-Last updated: 2026-06-08
+Last updated: 2026-06-15
 
 Canonical location `.codex/skills/`; symlinked at `.claude/skills/` and `.agents/skills/`.
 Load a skill by reading its file when its triggers match the current work.
@@ -15,7 +15,6 @@ Load a skill by reading its file when its triggers match the current work.
 | Model Packaging  | model-packaging.md    | manifest, weights, package, safetensors, checksum, safe load   | Extend   |
 
 ## Recommended (not yet scaffolded)
-- [ ] `planning-cem-mpc.md` — CEM/MPC planner orchestration once `plan` moves beyond the mock.
+- [ ] `planning-cem-mpc.md` — extract the `lewm` backend's in-process CEM planner (`runtime_lewm.py`) if planning grows.
 - [ ] `batching-backpressure.md` — Ray Serve dynamic batching + queue/backpressure (phase-2).
 - [ ] `benchmarking.md` — load-test matrix execution (see `benchmarks/load-test-plan.md`).
-</content>

@@ -1,6 +1,8 @@
 # LeWorldModel integration guide
 
-This guide describes how to replace the mock backend with a real Push-T LeWorldModel runtime.
+The real Push-T runtime described here is **implemented** as `LeWMRuntime`
+(`src/wmcp_jepa_service/runtime_lewm.py`, the `lewm` backend). This guide is the authoritative recipe
+for how it was built — and how to repeat the integration for a new checkpoint or world-model backend.
 
 ## 1. Pin source dependencies
 
