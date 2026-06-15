@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-15T00:00:00Z",
+  "title": "Design System: WMCP LeWM Operations Console",
+  "extensions": {
+    "colorMeta": {
+      "instrument-teal": {
+        "role": "primary",
+        "displayName": "Instrument Teal",
+        "canonical": "#176f72",
+        "tonalRamp": ["#0a2c2e", "#0f4446", "#135c5e", "#176f72", "#2d8688", "#5aa3a4", "#97c5c6", "#d3e6e6"]
+      },
+      "deep-olive": {
+        "role": "secondary",
+        "displayName": "Deep Olive",
+        "canonical": "#4e6630",
+        "tonalRamp": ["#1f2913", "#2e3d1d", "#3e5226", "#4e6630", "#66804a", "#88a06e", "#b3c49e", "#dde4d2"]
+      },
+      "moss": {
+        "role": "secondary",
+        "displayName": "Moss",
+        "canonical": "#7b9652",
+        "tonalRamp": ["#33401f", "#46562b", "#5a6e39", "#7b9652", "#94aa72", "#b0c098", "#cdd7be", "#e6ebdd"]
+      },
+      "clay": {
+        "role": "tertiary",
+        "displayName": "Clay",
+        "canonical": "#b45b42",
+        "tonalRamp": ["#4a2117", "#6d3122", "#8f4231", "#b45b42", "#c4775f", "#d49e8c", "#e4c4b8", "#f2e3dc"]
+      },
+      "amber": {
+        "role": "tertiary",
+        "displayName": "Amber",
+        "canonical": "#d79a27",
+        "tonalRamp": ["#5a3f0d", "#7e5912", "#a8771a", "#d79a27", "#e0ad4f", "#e9c37e", "#f1d8ab", "#f8edd6"]
+      },
+      "signal-red": {
+        "role": "semantic",
+        "displayName": "Signal Red",
+        "canonical": "#b3384b",
+        "tonalRamp": ["#4a1620", "#6c212f", "#8e2c3d", "#b3384b", "#c4606f", "#d58a95", "#e6b6bd", "#f3dde1"]
+      },
+      "graphite-olive": {
+        "role": "neutral",
+        "displayName": "Graphite Olive",
+        "canonical": "#22231e",
+        "tonalRamp": ["#0c0d0a", "#161712", "#1c1d18", "#22231e", "#3a3b34", "#5c5d54", "#8f9088", "#c4c5bd"]
+      },
+      "sage-paper": {
+        "role": "neutral",
+        "displayName": "Sage Paper",
+        "canonical": "#edf0ea",
+        "tonalRamp": ["#6b7068", "#878d80", "#a7ad9f", "#c8cdc0", "#dde1d6", "#edf0ea", "#f4f6f1", "#fafbf7"]
+      },
+      "lab-bone": {
+        "role": "neutral",
+        "displayName": "Lab Bone",
+        "canonical": "#fcfbf4",
+        "tonalRamp": ["#7a7868", "#9a9885", "#bbb9a6", "#d8d6c6", "#ecebde", "#f6f5ec", "#fcfbf4", "#ffffff"]
+      },
+      "slate-sage": {
+        "role": "neutral",
+        "displayName": "Slate Sage",
+        "canonical": "#687068",
+        "tonalRamp": ["#2a2e2a", "#3a3f3a", "#4d534d", "#687068", "#838b83", "#a3aaa3", "#c5cac5", "#e6e9e6"]
+      },
+      "hairline-sage": {
+        "role": "neutral",
+        "displayName": "Hairline Sage",
+        "canonical": "#c8d0c7",
+        "tonalRamp": ["#5b6159", "#737a70", "#8d958a", "#a8b0a5", "#c8d0c7", "#d8ded5", "#e7ebe3", "#f4f6f1"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Masthead H1 only. Avenir Next, steps down per breakpoint (not fluid)." },
+      "headline": { "displayName": "Headline", "purpose": "Panel titles." },
+      "metric": { "displayName": "Metric", "purpose": "Large live numbers in the metrics grid; data-display register on dark tiles." },
+      "body": { "displayName": "Body", "purpose": "Running text and response prose; cap at 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Uppercase micro-labels: eyebrow, control labels, chart titles, table headers. The confined heavy-weight accent." },
+      "mono": { "displayName": "Mono", "purpose": "JSON editor, payloads, log bodies. Where exactness is read." }
+    },
+    "shadows": [
+      { "name": "ambient-lift", "value": "0 18px 45px rgb(35 45 38 / 12%)", "purpose": "Soft dark-green-tinted float. Use as a STATE response (hover/focus/raised), not the resting style of every surface." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "transform 140ms ease, border-color 140ms ease, background 140ms ease", "purpose": "Default control transition. Buttons/links lift translateY(-1px) on hover." },
+      { "name": "focus-ring", "value": "outline: 3px solid color-mix(in srgb, #176f72, white 45%); outline-offset: 2px", "purpose": "Shared :focus-visible treatment on every interactive control." }
+    ],
+    "breakpoints": [
+      { "name": "min", "value": "320px" },
+      { "name": "lg", "value": "1040px" },
+      { "name": "sm", "value": "720px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action per cluster (Send). Inverted dark fill, single calm hover lift.",
+      "html": "<button class=\"ds-btn-primary\">Send</button>",
+      "css": ".ds-btn-primary { min-height: 38px; padding: 8px 13px; border: 1px solid #22231e; border-radius: 6px; background: #22231e; color: #edf0ea; font-weight: 800; font-family: 'IBM Plex Sans', sans-serif; cursor: pointer; transition: transform 140ms ease, background 140ms ease; } .ds-btn-primary:hover { transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 3px solid color-mix(in srgb, #176f72, white 45%); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.48; transform: none; cursor: not-allowed; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Secondary actions and masthead service links. Bone fill, hairline border, heavy label.",
+      "html": "<button class=\"ds-btn\">Run batch</button>",
+      "css": ".ds-btn { min-height: 38px; padding: 8px 13px; border: 1px solid #22231e; border-radius: 6px; background: #fcfbf4; color: #22231e; font-weight: 800; font-family: 'IBM Plex Sans', sans-serif; cursor: pointer; transition: transform 140ms ease, background 140ms ease; } .ds-btn:hover { transform: translateY(-1px); } .ds-btn:focus-visible { outline: 3px solid color-mix(in srgb, #176f72, white 45%); outline-offset: 2px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Numeric/text control. Brightest field bone signals 'you write here'.",
+      "html": "<label class=\"ds-field\"><span>Candidates</span><input type=\"number\" value=\"16\"></label>",
+      "css": ".ds-field { display: block; min-width: 0; } .ds-field span { display: block; margin-bottom: 5px; color: #687068; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; font-family: 'IBM Plex Sans', sans-serif; } .ds-field input { width: 100%; height: 42px; padding: 7px 9px; border: 1px solid #c8d0c7; border-radius: 6px; background: #fefff9; color: #22231e; font-family: 'IBM Plex Sans', sans-serif; } .ds-field input:focus-visible { outline: 3px solid color-mix(in srgb, #176f72, white 45%); outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Read-only inline status tag. Pill, pale teal tint, teal text.",
+      "html": "<span class=\"ds-badge\">uri pixels</span>",
+      "css": ".ds-badge { display: inline-block; padding: 6px 10px; border: 1px solid #c8d0c7; border-radius: 999px; background: color-mix(in srgb, #176f72, white 84%); color: #176f72; font-size: 0.78rem; font-weight: 900; font-family: 'IBM Plex Sans', sans-serif; }"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Surface container. Border-defined, flat at rest (shadow reserved for state).",
+      "html": "<section class=\"ds-panel\"><p class=\"ds-eyebrow\">Prometheus</p><h2 class=\"ds-h2\">Live service shape</h2></section>",
+      "css": ".ds-panel { padding: clamp(16px, 2vw, 24px); border: 1px solid #c8d0c7; border-radius: 8px; background: #fcfbf4; color: #22231e; } .ds-panel:hover { box-shadow: 0 18px 45px rgb(35 45 38 / 12%); } .ds-eyebrow { margin: 0 0 6px; color: #4e6630; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; font-family: 'IBM Plex Sans', sans-serif; } .ds-h2 { margin: 0; font-family: 'Avenir Next', 'IBM Plex Sans', sans-serif; font-size: 1.45rem; font-weight: 600; line-height: 1.05; }"
+    },
+    {
+      "name": "Metric Tile",
+      "kind": "custom",
+      "refersTo": "metric-tile",
+      "description": "Dark instrument tile in the seamless metrics cluster. Uppercase moss-tinted label over a large exact number.",
+      "html": "<article class=\"ds-metric\"><span>p95 latency</span><strong>42 ms</strong></article>",
+      "css": ".ds-metric { padding: 18px; background: #22231e; color: #edf0ea; } .ds-metric span { display: block; color: color-mix(in srgb, #edf0ea, #7b9652 25%); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; font-family: 'IBM Plex Sans', sans-serif; } .ds-metric strong { display: block; margin-top: 5px; font-size: 2.35rem; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Field Instrument",
+    "overview": "This is calibrated equipment, not a marketing dashboard. The console reads like a warm-enamel field instrument: a steady housing in muted sage and bone, hairline gridlines, exact dials, and one teal needle that moves when the system moves. Its defining move is the refusal of the genre default — observability tooling reaches for neon-on-charcoal by reflex; this console answers in a warm, light, earth-toned register instead. That warmth is the brand: trust carried by material and precision, never by gradients, glass, or hype. The voice is terse and technical, operator-to-operator; it shows the real metric name and the real unit.",
+    "keyCharacteristics": [
+      "Warm, light, earth-toned — a deliberate escape from dark-mode observability.",
+      "Hairline-ruled surfaces; depth from borders and tonal steps, not heavy shadow.",
+      "One teal accent reserved for live signal, selection, and focus.",
+      "Heavy weight confined to small uppercase micro-labels; body and data stay calm.",
+      "Exact metric names and units everywhere; the data is the only ornament."
+    ],
+    "rules": [
+      { "name": "The One Needle Rule", "body": "Instrument Teal is the only live-signal color. It marks what is moving or selected — sparkline, current selection, focus. If teal is on more than a small fraction of a resting screen, it has stopped meaning 'signal' and become decoration.", "section": "colors" },
+      { "name": "The Warm-Light Rule", "body": "The background is warm and light, always. Reverting to charcoal/black to 'look like observability tooling' is forbidden — that regression erases the brand.", "section": "colors" },
+      { "name": "The Confined-Weight Rule", "body": "Weight 800 lives only on small uppercase micro-labels. Headings stay at 600, body at 400, data at 700. Do not let 800/900 weights spread into headings, prose, or large numbers.", "section": "typography" },
+      { "name": "The Untracked-Display Rule", "body": "Display letter-spacing stays at 0 and never goes below -0.04em. A measured, calm headline, not a cramped fashion grotesque.", "section": "typography" },
+      { "name": "The Flat-At-Rest Rule", "body": "Surfaces are defined by the hairline border and tonal steps. Shadows appear as feedback to state, then settle back. A screen at rest reads as ruled paper, not floating cards.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the background warm and light (Sage Paper #edf0ea); carry trust through material and precision, not effects.",
+      "Do reserve Instrument Teal (#176f72) for live signal, selection, and focus — the One Needle.",
+      "Do define surfaces with the 1px Hairline Sage (#c8d0c7) border and tonal steps; keep them flat at rest and let shadow respond to state.",
+      "Do confine weight 800 to small uppercase micro-labels; headings at 600, body at 400.",
+      "Do show real metric names and units (wmcp_request_latency_seconds, p95, /s) and exact tensor shapes. The data is the ornament.",
+      "Do pair status color with a word or shape (ok / error) so meaning never rests on hue alone (WCAG 2.1 AA; colorblind-safe).",
+      "Do keep :focus-visible rings on every control and honor prefers-reduced-motion — crossfade or cut instead of the hover lift."
+    ],
+    "donts": [
+      "Don't revert to a generic dark-mode SaaS dashboard — neon-on-charcoal, stock Grafana skin, glowing lines on black.",
+      "Don't introduce the gradient / glassy 'AI startup' aesthetic — purple gradients, glassmorphism, decorative blur, or the hero-metric stat-card cliché.",
+      "Don't ship the crowded Bootstrap-era enterprise admin look — undifferentiated gray tables, default form controls, no hierarchy.",
+      "Don't go toy — no oversized rounded corners (cards stay 8px, never 24px+), no bright primary toy colors, no cartoon affordances.",
+      "Don't pair a 1px border with a wide ambient shadow on resting surfaces (the ghost-card tell); pick the border at rest, the shadow on state.",
+      "Don't let teal spread across a resting screen, and don't track the display heading below -0.04em.",
+      "Don't nest cards, and don't paraphrase metric names into 'friendlier' copy."
+    ]
+  }
+}
