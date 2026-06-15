@@ -28,6 +28,11 @@ The `traffic-generator` service runs `python -m client.traffic` continuously. It
 backend, sends small base64-pixel requests to the real `lewm` runtime, varies score/rollout/plan
 shapes, and periodically emits an expected validation error so error-rate panels have data.
 
+The `stress-tester` service (`make demo-lewm-stress-test`) runs `python -m client.stress`: a
+high-load, concurrent version that spawns many workers submitting a randomized, weighted operation
+mix with varied shapes, then prints a latency-percentile summary and exits. Tuned entirely through
+`WMCP_STRESS_*` env vars — see the README "Stress test" section.
+
 ## Layout
 
 | Module | Role |
@@ -36,6 +41,7 @@ shapes, and periodically emits an expected validation error so error-rate panels
 | `payloads.py` | build WMCP envelopes (URI-backed obs/goal, inline or URI action candidates `[B,S,T,10]`) |
 | `demo.py` | `python -m client.demo` entrypoint (`run_demo` + `summarize`) |
 | `traffic.py` | compose traffic stimulator for live Prometheus/Grafana data |
+| `stress.py` | concurrent high-load stress tester (`python -m client.stress`) with percentile summary |
 | `render.py` | static-HTML result view (no external deps) |
 
 ## Optional: real image payloads

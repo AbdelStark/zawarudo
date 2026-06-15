@@ -1,4 +1,4 @@
-.PHONY: install test run docker-build compose-up compose-down package package-verify bench demo demo-local demo-gpu demo-lewm demo-down
+.PHONY: install test run docker-build compose-up compose-down package package-verify bench demo demo-local demo-gpu demo-lewm demo-lewm-stress-test demo-down
 
 install:
 	pip install -e .[dev]
@@ -42,6 +42,12 @@ demo-lewm:
 # Same, with an NVIDIA GPU reservation (needs the NVIDIA Container Toolkit).
 demo-gpu:
 	cd deployment && docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up --build
+
+# Real LeWM stack + a concurrent client-side stress tester (configurable via WMCP_STRESS_* env vars).
+# The tester runs for WMCP_STRESS_DURATION seconds, prints a latency-percentile summary, and exits;
+# the stack stays up. Example: WMCP_STRESS_CONCURRENCY=16 WMCP_STRESS_DURATION=300 make demo-lewm-stress-test
+demo-lewm-stress-test:
+	cd deployment && docker compose -f docker-compose.yaml -f docker-compose.lewm.yaml -f docker-compose.stress.yaml up --build
 
 demo-down:
 	cd deployment && docker compose down -v
