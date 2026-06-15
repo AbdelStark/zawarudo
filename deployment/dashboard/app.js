@@ -286,6 +286,7 @@ async function refreshStatus() {
   try {
     const ready = await fetchJson("/api/readyz");
     const metadata = await fetchJson(`/api/wmcp/v1/models/${MODEL_ID}`);
+    const previousBackend = state.backend;
     state.metadata = metadata;
     state.backend = metadata.runtime?.backend || ready.backend || "mock";
     els["ready-state"].textContent = ready.status || "ready";
@@ -293,12 +294,22 @@ async function refreshStatus() {
     els["model-state"].textContent = metadata.model_id || MODEL_ID;
     els["revision-state"].textContent = metadata.model_revision || "unknown";
     setServiceDown(false);
-    renderPayload();
+    state.serviceReachable = true;
+    // Only regenerate the editor payload when the backend actually changes, so the periodic
+    // self-heal below never clobbers a payload the user is editing. The format (uri vs base64
+    // pixels) depends on the backend, so a stale `mock` must correct itself to `lewm`.
+    if (state.backend !== previousBackend) {
+      renderPayload();
+    }
   } catch (error) {
     els["ready-state"].textContent = "unreachable";
     els["backend-state"].textContent = "unknown";
     setServiceDown(true, error);
-    addLog("status", false, 0, error.body || { message: error.message });
+    // Log only on the transition to unreachable, so the 5s poll doesn't spam the call log.
+    if (state.serviceReachable !== false) {
+      addLog("status", false, 0, error.body || { message: error.message });
+    }
+    state.serviceReachable = false;
   }
 }
 
@@ -813,7 +824,13 @@ async function boot() {
   renderPayload();
   await refreshStatus();
   await refreshMetrics();
-  state.metricsTimer = window.setInterval(refreshMetrics, 5000);
+  // Re-detect status (backend, readiness) alongside metrics so a `state.backend` that was stuck
+  // at the `mock` default — e.g. the page loaded while the backend was briefly unreachable — heals
+  // itself within one interval instead of requiring a manual Refresh.
+  state.metricsTimer = window.setInterval(() => {
+    refreshMetrics();
+    refreshStatus();
+  }, 5000);
 }
 
 boot();
