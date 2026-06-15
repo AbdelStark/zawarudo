@@ -30,3 +30,6 @@ models/**/manifest.json
 # Local demo/showcase scratch outputs (.artifacts/ already ignored above)
 /public-demo.html
 /demo.html
+
+# Local agent harness / video-presentation working dir
+.harness/
