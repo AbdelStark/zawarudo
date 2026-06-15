@@ -9,6 +9,7 @@ const state = {
   liveTimer: null,
   metricsTimer: null,
   log: [],
+  logSeq: 0,
   pixelCache: new Map(),
   cancel: false,
 };
@@ -285,6 +286,7 @@ async function refreshStatus() {
   try {
     const ready = await fetchJson("/api/readyz");
     const metadata = await fetchJson(`/api/wmcp/v1/models/${MODEL_ID}`);
+    const previousBackend = state.backend;
     state.metadata = metadata;
     state.backend = metadata.runtime?.backend || ready.backend || "mock";
     els["ready-state"].textContent = ready.status || "ready";
@@ -292,12 +294,22 @@ async function refreshStatus() {
     els["model-state"].textContent = metadata.model_id || MODEL_ID;
     els["revision-state"].textContent = metadata.model_revision || "unknown";
     setServiceDown(false);
-    renderPayload();
+    state.serviceReachable = true;
+    // Only regenerate the editor payload when the backend actually changes, so the periodic
+    // self-heal below never clobbers a payload the user is editing. The format (uri vs base64
+    // pixels) depends on the backend, so a stale `mock` must correct itself to `lewm`.
+    if (state.backend !== previousBackend) {
+      renderPayload();
+    }
   } catch (error) {
     els["ready-state"].textContent = "unreachable";
     els["backend-state"].textContent = "unknown";
     setServiceDown(true, error);
-    addLog("status", false, 0, error.body || { message: error.message });
+    // Log only on the transition to unreachable, so the 5s poll doesn't spam the call log.
+    if (state.serviceReachable !== false) {
+      addLog("status", false, 0, error.body || { message: error.message });
+    }
+    state.serviceReachable = false;
   }
 }
 
@@ -488,21 +500,32 @@ async function refreshMetrics() {
 }
 
 async function postOperation(operation, payload) {
+  const requestBody = { ...payload, operation, model: MODEL_ID };
   const started = performance.now();
   const response = await fetchJson(`/api/wmcp/v1/models/${MODEL_ID}:${operation}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...payload, operation, model: MODEL_ID }),
+    body: JSON.stringify(requestBody),
   });
   const elapsed = performance.now() - started;
-  addLog(operation, true, elapsed, response);
+  addLog(operation, true, elapsed, response, requestBody);
   return response;
 }
 
-function addLog(operation, ok, elapsed, body) {
-  state.log.unshift({ operation, ok, elapsed, body, at: new Date() });
+function addLog(operation, ok, elapsed, body, request = null) {
+  const entry = { id: (state.logSeq += 1), operation, ok, elapsed, body, request, at: new Date() };
+  state.log.unshift(entry);
   state.log = state.log.slice(0, 40);
-  renderLog();
+
+  // Prepend a single node (instead of rebuilding) so an open/expanded entry stays open as new
+  // calls stream in.
+  const container = els["response-log"];
+  const empty = container.querySelector(".empty-log");
+  if (empty) empty.remove();
+  container.prepend(createLogEntry(entry));
+  while (container.children.length > 40) {
+    container.lastElementChild.remove();
+  }
 }
 
 function renderLog() {
@@ -515,21 +538,144 @@ function renderLog() {
     container.appendChild(empty);
     return;
   }
-  state.log.forEach((entry) => {
-    const detail = document.createElement("details");
-    detail.className = "log-entry";
-    const statusClass = entry.ok ? "ok" : "error";
-    const statusText = entry.ok ? "ok" : "error";
-    detail.innerHTML = `
-      <summary>
-        <span class="${statusClass}">${statusText}</span>
-        <span>${entry.operation}</span>
-        <span>${formatSeconds(entry.elapsed / 1000)} · ${entry.at.toLocaleTimeString()}</span>
-      </summary>
-      <pre>${escapeHtml(JSON.stringify(entry.body, null, 2))}</pre>
-    `;
-    container.appendChild(detail);
-  });
+  state.log.forEach((entry) => container.appendChild(createLogEntry(entry)));
+}
+
+function createLogEntry(entry) {
+  const details = document.createElement("details");
+  details.className = "log-entry";
+  details.dataset.entryId = String(entry.id);
+  const statusClass = entry.ok ? "ok" : "error";
+  const hasRequest = entry.request != null;
+  details.innerHTML = `
+    <summary>
+      <span class="${statusClass}">${entry.ok ? "ok" : "error"}</span>
+      <span>${entry.operation}</span>
+      <span class="log-meta">${formatSeconds(entry.elapsed / 1000)} · ${entry.at.toLocaleTimeString()}</span>
+    </summary>
+    <div class="log-detail">
+      <div class="log-toolbar">
+        <button type="button" class="log-tab is-active" data-tab="response">Response</button>
+        ${hasRequest ? '<button type="button" class="log-tab" data-tab="request">Request</button>' : ""}
+        <span class="log-spacer"></span>
+        <button type="button" class="copy-btn" title="Copy the visible JSON to the clipboard">Copy</button>
+      </div>
+      <pre class="json-view" data-tab="response"></pre>
+    </div>
+  `;
+  details.querySelector(".json-view").innerHTML = highlightJson(previewJson(entry.body));
+  return details;
+}
+
+// Delegated handler: tab switch (Response/Request) and copy-to-clipboard for any log entry.
+function onLogClick(event) {
+  const details = event.target.closest(".log-entry");
+  if (!details) return;
+  const entry = state.log.find((item) => String(item.id) === details.dataset.entryId);
+  if (!entry) return;
+
+  const tabButton = event.target.closest(".log-tab");
+  if (tabButton) {
+    const tab = tabButton.dataset.tab;
+    details.querySelectorAll(".log-tab").forEach((button) => {
+      button.classList.toggle("is-active", button === tabButton);
+    });
+    const view = details.querySelector(".json-view");
+    view.dataset.tab = tab;
+    view.innerHTML = highlightJson(previewJson(tab === "request" ? entry.request : entry.body));
+    return;
+  }
+
+  const copyButton = event.target.closest(".copy-btn");
+  if (copyButton) {
+    const tab = details.querySelector(".json-view").dataset.tab || "response";
+    const data = tab === "request" ? entry.request : entry.body;
+    copyToClipboard(JSON.stringify(data, null, 2), copyButton);
+  }
+}
+
+async function copyToClipboard(text, button) {
+  const original = button.textContent;
+  let copied = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    }
+  } catch (error) {
+    copied = false;
+  }
+  if (!copied) {
+    // Fallback for non-secure contexts / older browsers.
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    try {
+      copied = document.execCommand("copy");
+    } catch (error) {
+      copied = false;
+    }
+    area.remove();
+  }
+  button.textContent = copied ? "Copied" : "Copy failed";
+  button.classList.toggle("is-copied", copied);
+  window.setTimeout(() => {
+    button.textContent = original;
+    button.classList.remove("is-copied");
+  }, 1300);
+}
+
+// The preview abbreviates giant payloads (base64 pixels, large inline action arrays) so the view
+// stays readable and light; Copy always uses the full, untruncated value.
+function previewJson(data) {
+  if (data === undefined || data === null) return "(none)";
+  return JSON.stringify(abbreviate(data), null, 2);
+}
+
+function abbreviate(value) {
+  if (typeof value === "string") {
+    return value.length > 140 ? `${value.slice(0, 96)}… [${value.length} chars]` : value;
+  }
+  if (Array.isArray(value)) {
+    const limit = 16;
+    const head = value.slice(0, limit).map(abbreviate);
+    if (value.length > limit) head.push(`… [${value.length - limit} more of ${value.length}]`);
+    return head;
+  }
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, val] of Object.entries(value)) out[key] = abbreviate(val);
+    return out;
+  }
+  return value;
+}
+
+// Lightweight JSON syntax highlighter: tokenize the raw string, escape each piece, wrap in spans.
+function highlightJson(jsonString) {
+  const tokenRe = /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+  let html = "";
+  let last = 0;
+  let match;
+  while ((match = tokenRe.exec(jsonString)) !== null) {
+    html += escapeHtml(jsonString.slice(last, match.index));
+    const token = match[0];
+    let cls = "tok-num";
+    if (token.startsWith('"')) {
+      cls = /:\s*$/.test(token) ? "tok-key" : "tok-str";
+    } else if (token === "true" || token === "false") {
+      cls = "tok-bool";
+    } else if (token === "null") {
+      cls = "tok-null";
+    }
+    html += `<span class="${cls}">${escapeHtml(token)}</span>`;
+    last = match.index + token.length;
+  }
+  html += escapeHtml(jsonString.slice(last));
+  return html;
 }
 
 function escapeHtml(value) {
@@ -548,12 +694,13 @@ async function sendFromEditor() {
   const label = button.textContent;
   button.disabled = true;
   button.textContent = "Sending…";
+  let payload = null;
   try {
-    const payload = JSON.parse(els["payload-editor"].value);
+    payload = JSON.parse(els["payload-editor"].value);
     await postOperation(operation, payload);
     await refreshMetrics();
   } catch (error) {
-    addLog(operation, false, 0, error.body || { message: error.message });
+    addLog(operation, false, 0, error.body || { message: error.message }, payload);
   } finally {
     button.disabled = false;
     button.textContent = label;
@@ -575,7 +722,7 @@ async function runBatch() {
       try {
         await postOperation(operation, payload);
       } catch (error) {
-        addLog(operation, false, 0, error.body || { message: error.message });
+        addLog(operation, false, 0, error.body || { message: error.message }, payload);
       }
     }
   } finally {
@@ -594,12 +741,14 @@ function mixPayloads(seedOffset = 0) {
   const rolloutCandidates = safeLeWM ? 4 : 16;
   const planCandidates = safeLeWM ? 10 : 64;
   const horizon = safeLeWM ? 4 : 8;
+  // One valid request per operation — a clean "all green" demo. Validation-error metrics are fed by
+  // the traffic-generator and stress-tester (which include intentional invalids by design), so the
+  // dashboard mix does not need to ship a guaranteed failure.
   return [
     ["score", buildPayload("score", { candidates: scoreCandidates, horizon, seed: 101 + seedOffset })],
     ["plan", buildPayload("plan", { candidates: planCandidates, horizon, iterations: safeLeWM ? 2 : 5, seed: 102 + seedOffset })],
     ["encode", buildPayload("encode", { seed: 103 + seedOffset })],
     ["rollout", buildPayload("rollout", { candidates: rolloutCandidates, horizon, seed: 104 + seedOffset })],
-    ["score", { wmcp_version: "0.1", inputs: {} }],
   ];
 }
 
@@ -609,7 +758,7 @@ async function runPregeneratedMix(seedOffset = 0) {
     try {
       await postOperation(operation, payload);
     } catch (error) {
-      addLog(operation, false, 0, error.body || { message: error.message });
+      addLog(operation, false, 0, error.body || { message: error.message }, payload);
     }
   }
   await refreshMetrics();
@@ -663,6 +812,7 @@ function bindEvents() {
       sendFromEditor();
     }
   });
+  els["response-log"].addEventListener("click", onLogClick);
   els["clear-log-button"].addEventListener("click", () => {
     state.log = [];
     renderLog();
@@ -676,7 +826,13 @@ async function boot() {
   renderPayload();
   await refreshStatus();
   await refreshMetrics();
-  state.metricsTimer = window.setInterval(refreshMetrics, 5000);
+  // Re-detect status (backend, readiness) alongside metrics so a `state.backend` that was stuck
+  // at the `mock` default — e.g. the page loaded while the backend was briefly unreachable — heals
+  // itself within one interval instead of requiring a manual Refresh.
+  state.metricsTimer = window.setInterval(() => {
+    refreshMetrics();
+    refreshStatus();
+  }, 5000);
 }
 
 boot();
