@@ -430,6 +430,74 @@ details.log-entry summary::-webkit-details-marker {
   color: var(--bad);
 }
 
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel), var(--paper) 45%);
+}
+
+.log-spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.log-tab,
+.copy-btn {
+  min-height: 30px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.log-tab.is-active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.copy-btn.is-copied {
+  border-color: var(--olive);
+  color: var(--olive);
+}
+
+.json-view {
+  max-height: 360px;
+}
+
+.json-view .tok-key {
+  color: var(--olive);
+  font-weight: 700;
+}
+
+.json-view .tok-str {
+  color: #8f4231;
+}
+
+.json-view .tok-num {
+  color: var(--teal);
+}
+
+.json-view .tok-bool {
+  color: #8a5a10;
+  font-weight: 700;
+}
+
+.json-view .tok-null {
+  color: var(--muted);
+  font-style: italic;
+}
+
 pre {
   overflow: auto;
   margin: 0;
@@ -565,7 +633,9 @@ pre {
   .links a,
   button,
   .controls input,
-  .controls select {
+  .controls select,
+  .log-tab,
+  .copy-btn {
     min-height: 44px;
   }
 }
