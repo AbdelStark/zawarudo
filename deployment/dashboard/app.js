@@ -741,12 +741,14 @@ function mixPayloads(seedOffset = 0) {
   const rolloutCandidates = safeLeWM ? 4 : 16;
   const planCandidates = safeLeWM ? 10 : 64;
   const horizon = safeLeWM ? 4 : 8;
+  // One valid request per operation — a clean "all green" demo. Validation-error metrics are fed by
+  // the traffic-generator and stress-tester (which include intentional invalids by design), so the
+  // dashboard mix does not need to ship a guaranteed failure.
   return [
     ["score", buildPayload("score", { candidates: scoreCandidates, horizon, seed: 101 + seedOffset })],
     ["plan", buildPayload("plan", { candidates: planCandidates, horizon, iterations: safeLeWM ? 2 : 5, seed: 102 + seedOffset })],
     ["encode", buildPayload("encode", { seed: 103 + seedOffset })],
     ["rollout", buildPayload("rollout", { candidates: rolloutCandidates, horizon, seed: 104 + seedOffset })],
-    ["score", { wmcp_version: "0.1", inputs: {} }],
   ];
 }
 
