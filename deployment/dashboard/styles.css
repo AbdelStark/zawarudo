@@ -142,6 +142,15 @@ button:disabled {
 .panel {
   border: 1px solid var(--line);
   background: var(--panel);
+}
+
+/* Flat at rest: surfaces are border-defined; the ambient lift is reserved for
+   state (working inside a panel), not painted under everything by default. */
+.panel {
+  transition: box-shadow 160ms ease;
+}
+
+.panel:focus-within {
   box-shadow: var(--shadow);
 }
 
@@ -432,6 +441,41 @@ pre {
   white-space: pre-wrap;
 }
 
+.status-hint {
+  display: none;
+  margin: 0 0 14px;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--bad), white 88%);
+  color: color-mix(in srgb, var(--bad), black 14%);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.status-hint.visible {
+  display: block;
+}
+
+.status-item.is-down strong {
+  color: var(--bad);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  button:hover,
+  .links a:hover {
+    transform: none;
+  }
+}
+
 @media (max-width: 1040px) {
   .masthead,
   .dashboard-grid {
@@ -516,5 +560,12 @@ pre {
   .op-row {
     grid-template-columns: 1fr;
     min-width: 0;
+  }
+
+  .links a,
+  button,
+  .controls input,
+  .controls select {
+    min-height: 44px;
   }
 }
