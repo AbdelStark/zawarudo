@@ -10,6 +10,7 @@ const state = {
   metricsTimer: null,
   log: [],
   pixelCache: new Map(),
+  cancel: false,
 };
 
 const els = {};
@@ -18,9 +19,16 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function cssVar(name, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 function initElements() {
   [
     "ready-state",
+    "readiness-item",
+    "status-hint",
     "backend-state",
     "model-state",
     "revision-state",
@@ -283,11 +291,27 @@ async function refreshStatus() {
     els["backend-state"].textContent = state.backend;
     els["model-state"].textContent = metadata.model_id || MODEL_ID;
     els["revision-state"].textContent = metadata.model_revision || "unknown";
+    setServiceDown(false);
     renderPayload();
   } catch (error) {
     els["ready-state"].textContent = "unreachable";
     els["backend-state"].textContent = "unknown";
+    setServiceDown(true, error);
     addLog("status", false, 0, error.body || { message: error.message });
+  }
+}
+
+function setServiceDown(down, error) {
+  els["readiness-item"].classList.toggle("is-down", down);
+  const hint = els["status-hint"];
+  if (down) {
+    const reason = error?.message ? ` (${error.message})` : "";
+    hint.textContent =
+      `Service unreachable${reason}. Start the backend (\`make demo\`) or check WMCP_BACKEND, then Refresh.`;
+    hint.classList.add("visible");
+  } else {
+    hint.textContent = "";
+    hint.classList.remove("visible");
   }
 }
 
@@ -336,7 +360,7 @@ function mergeMaps(...maps) {
   return merged;
 }
 
-function drawSparkline(svg, matrix, color = "#24746f") {
+function drawSparkline(svg, matrix, color = cssVar("--teal", "#176f72")) {
   const series = matrix?.[0]?.values || [];
   const values = series.map((point) => Number(point[1])).filter((value) => Number.isFinite(value));
   svg.replaceChildren();
@@ -344,7 +368,7 @@ function drawSparkline(svg, matrix, color = "#24746f") {
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", "18");
     text.setAttribute("y", "48");
-    text.setAttribute("fill", "#6a665d");
+    text.setAttribute("fill", cssVar("--muted", "#687068"));
     text.textContent = "waiting for samples";
     svg.appendChild(text);
     return;
@@ -446,9 +470,9 @@ async function refreshMetrics() {
     els["metric-queue"].textContent = formatSeconds(firstValue(queue));
     els["metric-errors"].textContent = formatCount(firstValue(errors));
     els["metrics-age"].textContent = new Date().toLocaleTimeString();
-    drawSparkline(els["chart-rate"], rateSeries, "#24746f");
-    drawSparkline(els["chart-latency"], latencySeries, "#b65f3b");
-    drawSparkline(els["chart-errors"], errorSeries, "#b3384b");
+    drawSparkline(els["chart-rate"], rateSeries, cssVar("--teal", "#176f72"));
+    drawSparkline(els["chart-latency"], latencySeries, cssVar("--clay", "#b45b42"));
+    drawSparkline(els["chart-errors"], errorSeries, cssVar("--bad", "#b3384b"));
     renderOperationTable(mergeMaps(
       vectorMap(rateByOperation, "operation", "rate"),
       vectorMap(errorsByOperation, "operation", "errorRate"),
@@ -520,12 +544,19 @@ function escapeHtml(value) {
 
 async function sendFromEditor() {
   const operation = els["operation-select"].value;
+  const button = els["send-button"];
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "Sending…";
   try {
     const payload = JSON.parse(els["payload-editor"].value);
     await postOperation(operation, payload);
     await refreshMetrics();
   } catch (error) {
     addLog(operation, false, 0, error.body || { message: error.message });
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
   }
 }
 
@@ -533,12 +564,25 @@ async function runBatch() {
   const count = Math.max(1, Math.min(50, numberValue("batch-input", 6)));
   const operation = els["operation-select"].value;
   const baseSeed = numberValue("seed-input", 11);
-  for (let index = 0; index < count; index += 1) {
-    const payload = buildPayload(operation, { seed: baseSeed + index });
-    try {
-      await postOperation(operation, payload);
-    } catch (error) {
-      addLog(operation, false, 0, error.body || { message: error.message });
+  state.cancel = false;
+  els["batch-button"].disabled = true;
+  els["live-button"].disabled = true;
+  els["stop-button"].disabled = false;
+  try {
+    for (let index = 0; index < count; index += 1) {
+      if (state.cancel) break;
+      const payload = buildPayload(operation, { seed: baseSeed + index });
+      try {
+        await postOperation(operation, payload);
+      } catch (error) {
+        addLog(operation, false, 0, error.body || { message: error.message });
+      }
+    }
+  } finally {
+    els["batch-button"].disabled = false;
+    if (!state.liveTimer) {
+      els["live-button"].disabled = false;
+      els["stop-button"].disabled = true;
     }
   }
   await refreshMetrics();
@@ -561,6 +605,7 @@ function mixPayloads(seedOffset = 0) {
 
 async function runPregeneratedMix(seedOffset = 0) {
   for (const [operation, payload] of mixPayloads(seedOffset)) {
+    if (state.cancel) break;
     try {
       await postOperation(operation, payload);
     } catch (error) {
@@ -572,6 +617,7 @@ async function runPregeneratedMix(seedOffset = 0) {
 
 function startStimulator() {
   if (state.liveTimer) return;
+  state.cancel = false;
   let tick = 0;
   els["live-button"].disabled = true;
   els["stop-button"].disabled = false;
@@ -582,7 +628,10 @@ function startStimulator() {
   runPregeneratedMix(0);
 }
 
-function stopStimulator() {
+// Unified stop: cancels the stimulator interval and breaks any in-flight
+// batch / mix loop on its next iteration.
+function requestStop() {
+  state.cancel = true;
   if (state.liveTimer) {
     window.clearInterval(state.liveTimer);
     state.liveTimer = null;
@@ -602,9 +651,18 @@ function bindEvents() {
   });
   els["send-button"].addEventListener("click", sendFromEditor);
   els["batch-button"].addEventListener("click", runBatch);
-  els["mix-button"].addEventListener("click", () => runPregeneratedMix(0));
+  els["mix-button"].addEventListener("click", () => {
+    state.cancel = false;
+    runPregeneratedMix(0);
+  });
   els["live-button"].addEventListener("click", startStimulator);
-  els["stop-button"].addEventListener("click", stopStimulator);
+  els["stop-button"].addEventListener("click", requestStop);
+  els["payload-editor"].addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      sendFromEditor();
+    }
+  });
   els["clear-log-button"].addEventListener("click", () => {
     state.log = [];
     renderLog();

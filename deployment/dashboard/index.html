@@ -20,8 +20,8 @@
         </nav>
       </header>
 
-      <section class="status-band" aria-label="Service status">
-        <div class="status-item">
+      <section class="status-band" aria-label="Service status" aria-live="polite">
+        <div class="status-item" id="readiness-item">
           <span class="label">Readiness</span>
           <strong id="ready-state">checking</strong>
         </div>
@@ -39,6 +39,8 @@
         </div>
         <button id="refresh-button" type="button" class="icon-button" title="Refresh status and metrics">Refresh</button>
       </section>
+
+      <p id="status-hint" class="status-hint" role="alert"></p>
 
       <section class="metrics-grid" aria-label="Prometheus summary">
         <article>
@@ -78,10 +80,7 @@
       <section class="dashboard-grid">
         <section class="panel request-panel">
           <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Request workbench</p>
-              <h2>Send WMCP calls</h2>
-            </div>
+            <h2>Send WMCP calls</h2>
             <span id="payload-mode" class="badge">uri pixels</span>
           </div>
 
@@ -118,7 +117,7 @@
           </div>
 
           <div class="button-row">
-            <button id="send-button" type="button" class="primary">Send</button>
+            <button id="send-button" type="button" class="primary" title="Send (⌘/Ctrl + Enter)">Send</button>
             <button id="batch-button" type="button">Run batch</button>
             <button id="mix-button" type="button">Pregenerated mix</button>
             <button id="live-button" type="button">Start stimulator</button>
@@ -130,10 +129,7 @@
 
         <section class="panel chart-panel">
           <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Prometheus</p>
-              <h2>Live service shape</h2>
-            </div>
+            <h2>Live service shape</h2>
             <span id="metrics-age" class="badge">waiting</span>
           </div>
           <div class="chart-stack">
@@ -155,10 +151,7 @@
 
         <section class="panel log-panel">
           <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Responses</p>
-              <h2>Recent calls</h2>
-            </div>
+            <h2>Recent calls</h2>
             <button id="clear-log-button" type="button">Clear</button>
           </div>
           <div id="response-log" class="response-log"></div>
