@@ -21,10 +21,12 @@ class WorldModelBackend(Protocol):
 
 
 class MockWorldModelBackend:
-    """Deterministic-enough mock backend for API and observability development.
+    """Deterministic mock backend: synthetic, correctly-shaped outputs for contract tests and demos.
 
-    Replace this with a LeWMRuntime that loads the pinned Push-T checkpoint and calls
-    upstream encode/rollout/get_cost functions.
+    This is the default ``mock`` backend (``WMCP_BACKEND=mock``). The real Push-T runtime is
+    ``runtime_lewm.LeWMRuntime`` (``WMCP_BACKEND=lewm``); both satisfy ``WorldModelBackend`` so the
+    API never changes between them. Keep this mock weightless and torch-free so the contract suite
+    runs anywhere.
     """
 
     def __init__(self, model_id: str = "lewm-pusht", revision: str = "mock", backend: str = "mock") -> None:
