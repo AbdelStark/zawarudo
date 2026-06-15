@@ -2,7 +2,7 @@
 
 # Za Warudo
 
-**Serve JEPA world models over WMCP — encode, predict, rollout, score, plan behind one typed HTTP contract.**
+**Serve JEPA world models over WMCP: encode, predict, rollout, score, and plan behind one typed HTTP contract.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -22,18 +22,17 @@
 ---
 
 **Za Warudo** (`wmcp-jepa-service`) serves JEPA-style, action-conditioned world models over a typed,
-[WMCP](rfc/0001-wmcp-world-model-inference.md)-aligned HTTP API — five operations (`encode`,
-`predict`, `rollout`, `score`, `plan`) with first-class Prometheus metrics and OpenTelemetry traces,
-on CPU or GPU. Two engines sit behind a single `WorldModelBackend` protocol: a deterministic,
-torch-free **`mock`** (the default — no GPU, no weights) and a real **`lewm`** runtime that runs
-vendored [LeWorldModel](https://huggingface.co/quentinll/lewm-pusht) inference under
-`torch.inference_mode()` and plans with an in-process CEM/MPC loop. Inference and planning serving —
-**not** training.
+[WMCP](rfc/0001-wmcp-world-model-inference.md)-aligned HTTP API. It exposes five operations
+(`encode`, `predict`, `rollout`, `score`, `plan`), measures and traces every one, and runs on CPU or
+GPU. Two engines sit behind a single `WorldModelBackend` protocol: a deterministic, torch-free
+`mock` (the default, with no GPU and no weights) and a real `lewm` runtime that runs vendored
+[LeWorldModel](https://huggingface.co/quentinll/lewm-pusht) inference under `torch.inference_mode()`
+and plans with an in-process CEM/MPC loop. It serves inference and planning, not training.
 
-**Run the whole thing in one command** — no Docker, no GPU, no weights:
+Run the whole thing with one command (no Docker, no GPU, no weights):
 
 ```bash
-make demo-local     # boots the API, runs a score → plan cycle, writes an HTML view
+make demo-local     # boots the API, runs a score then plan cycle, writes an HTML view
 ```
 
 <table>
@@ -43,14 +42,14 @@ make demo-local     # boots the API, runs a score → plan cycle, writes an HTML
         <img src="docs/assets/img/screenshots/console.png" width="100%" alt="Interactive WMCP console with request workbench, live status band, and recent-calls log">
       </a>
       <br>
-      <sub><b>Interactive WMCP console</b> — compose encode/score/plan calls and watch responses land live</sub>
+      <sub><b>Interactive WMCP console.</b> Compose encode/score/plan calls and watch responses land live.</sub>
     </td>
     <td width="50%" align="center" valign="top">
       <a href="docs/assets/img/screenshots/operations-dashboard.png">
         <img src="docs/assets/img/screenshots/operations-dashboard.png" width="100%" alt="Grafana operations dashboard showing request rate, latency percentiles, model compute, and planner iterations">
       </a>
       <br>
-      <sub><b>Operations dashboard (Grafana)</b> — request rate, p50/p95/p99 latency, model compute, planner iterations</sub>
+      <sub><b>Operations dashboard (Grafana).</b> Request rate, p50/p95/p99 latency, model compute, planner iterations.</sub>
     </td>
   </tr>
   <tr>
@@ -59,30 +58,30 @@ make demo-local     # boots the API, runs a score → plan cycle, writes an HTML
         <img src="docs/assets/img/screenshots/wmcp-request.png" width="100%" alt="A live WMCP request envelope JSON with a TensorRef tensor encoded as base64">
       </a>
       <br>
-      <sub><b>Typed WMCP envelope on the wire</b> — tensors travel as TensorRef (inline / base64 / uri), never raw arrays</sub>
+      <sub><b>Typed WMCP envelope on the wire.</b> Tensors travel as TensorRef (inline / base64 / uri), never raw arrays.</sub>
     </td>
     <td width="50%" align="center" valign="top">
       <a href="docs/assets/img/screenshots/traffic-dashboard.png">
         <img src="docs/assets/img/screenshots/traffic-dashboard.png" width="100%" alt="Grafana traffic stimulator dashboard showing operation and status mix, candidate count, and rollout horizon">
       </a>
       <br>
-      <sub><b>Traffic stimulator (Grafana)</b> — operation &amp; status mix, candidate count, rollout horizon</sub>
+      <sub><b>Traffic stimulator (Grafana).</b> Operation &amp; status mix, candidate count, rollout horizon.</sub>
     </td>
   </tr>
 </table>
 
-### Highlights
+### What you get
 
-- **One typed contract for world-model inference.** Every request is a Pydantic v2 envelope; every
-  tensor travels as a `TensorRef` (`inline` / `base64` / `uri`), never a raw array. The wire shape is
-  mirrored in `api/openapi.yaml` and `schemas/*.schema.json`.
-- **Runtime-agnostic by design.** `mock` and `lewm` are swapped with a single env var
-  (`WMCP_BACKEND`) — routes, schemas, and metrics never change.
-- **Observability is not bolted on.** A single `_handle()` dispatch path drives 18 Prometheus metric
-  families and a full OTel span tree, so latency, error mapping, and trace context stay uniform across
-  every operation.
-- **Runs for everyone out of the box.** The default `mock` backend needs no GPU and no weights; the
-  real `lewm` path is opt-in (CPU or GPU) and loads only from a trusted, checksum-verified package.
+- **One typed contract.** Every request is a Pydantic v2 envelope; every tensor travels as a
+  `TensorRef` (`inline` / `base64` / `uri`), never a raw array. The wire shape is mirrored in
+  `api/openapi.yaml` and `schemas/*.schema.json`.
+- **Swap engines with one env var.** `mock` and `lewm` switch on `WMCP_BACKEND`. Routes, schemas, and
+  metrics stay the same.
+- **Metrics and traces on every call.** A single `_handle()` path drives 18 Prometheus metric
+  families and a full OTel span tree, so latency, error mapping, and trace context stay consistent
+  across operations.
+- **No GPU or weights to start.** The default `mock` backend needs neither. The real `lewm` path is
+  opt-in (CPU or GPU) and loads only from a trusted, checksum-verified package.
 
 ## Quickstart
 
@@ -92,15 +91,15 @@ make demo-local BACKEND=lewm    # the real Push-T checkpoint on CPU (no Docker)
 make demo                       # full Compose stack: dashboard + traffic + backend + Prometheus + OTel + Grafana
 ```
 
-`make demo-local` boots the API, runs a `metadata → score → plan` cycle, and writes an HTML view — no
+`make demo-local` boots the API, runs a `metadata → score → plan` cycle, and writes an HTML view. No
 Docker required. `make demo` brings up the full Docker Compose stack and exposes the interactive
 dashboard at **`http://localhost:8088`**, which sends direct WMCP requests, runs batches, starts a
 browser-side traffic mix, and reads live Prometheus queries through its proxy. A low-pressure
 `traffic-generator` keeps Grafana and the dashboard populated without manual clicks.
 
 > `make demo` runs the **mock** backend by default. If the dashboard shows `backend=mock` /
-> `revision=mock`, real checkpoint inference is *not* running — use `make demo-lewm` (the Compose
-> stack with the real engine) once you've built a model package. `demo-local` is the no-Docker path;
+> `revision=mock`, real checkpoint inference is not running. Use `make demo-lewm` (the Compose stack
+> with the real engine) once you've built a model package. `demo-local` is the no-Docker path;
 > `demo-lewm` is the full Compose stack.
 
 ### Run it by hand
@@ -112,7 +111,7 @@ make run                            # uvicorn on :8080 (mock backend)
 curl -s localhost:8080/wmcp/v1/models/lewm-pusht:score \
   -H 'content-type: application/json' -d @examples/score_request.json \
   | jq '.outputs.costs.shape'
-# [1, 256]   # costs are [B, S] = [1, 256] for score_request.json (best_index varies — synthetic costs)
+# [1, 256]   (costs are [B, S] for score_request.json; best_index varies because the mock costs are synthetic)
 ```
 
 ## Install
@@ -143,15 +142,15 @@ other id returns `404 MODEL_NOT_FOUND`. Every request is a typed `RequestEnvelop
 
 > **`predict`** is a real route and backend method, but both backends implement it by delegating to
 > `encode`. The KServe V2 adapter (`/v2/models/{name}/infer`) maps `body.parameters.operation`
-> (default `score`) onto a WMCP op and is a **minimal placeholder** — an unsupported op returns
+> (default `score`) onto a WMCP op and is a **minimal placeholder**. An unsupported op returns
 > `400 UNSUPPORTED_OPERATION`.
 
 **Envelopes** (`schemas.py`, Pydantic v2):
 
-- `RequestEnvelope` — `wmcp_version="0.1"`, `request_id`, `operation` ∈ `[metadata, encode, predict, rollout, score, plan]`, `model`, `model_revision?`, `trace`, `inputs`, `parameters`, `return_options`.
-- `ResponseEnvelope` — `wmcp_version`, `request_id`, `operation`, `model`, `model_revision?`, `outputs`, `diagnostics`.
-- `ErrorEnvelope` — `wmcp_version`, `request_id?`, `error`.
-- `TensorRef` — `kind="tensor"`, `encoding` ∈ `{inline, base64, uri}`, `dtype` ∈ `{uint8, float16, float32, float64, int32, int64}`, `shape`, `layout`, optional `data` / `data_b64` / `uri` / `sha256`. A validator enforces `inline→data`, `base64→data_b64`, `uri→uri`.
+- `RequestEnvelope`: `wmcp_version="0.1"`, `request_id`, `operation` ∈ `[metadata, encode, predict, rollout, score, plan]`, `model`, `model_revision?`, `trace`, `inputs`, `parameters`, `return_options`.
+- `ResponseEnvelope`: `wmcp_version`, `request_id`, `operation`, `model`, `model_revision?`, `outputs`, `diagnostics`.
+- `ErrorEnvelope`: `wmcp_version`, `request_id?`, `error`.
+- `TensorRef`: `kind="tensor"`, `encoding` ∈ `{inline, base64, uri}`, `dtype` ∈ `{uint8, float16, float32, float64, int32, int64}`, `shape`, `layout`, optional `data` / `data_b64` / `uri` / `sha256`. A validator enforces `inline→data`, `base64→data_b64`, `uri→uri`.
 
 **Errors** return `{detail: {code, message}}`:
 
@@ -164,7 +163,7 @@ other id returns `404 MODEL_NOT_FOUND`. Every request is a typed `RequestEnvelop
 
 Request/response fixtures live in [`examples/`](examples/) (`score_request.json`, `rollout_request.json`,
 `plan_request.json`, `metadata_response.json`). The canonical contract is
-[`api/openapi.yaml`](api/openapi.yaml) + [`schemas/*.schema.json`](schemas/) — treat those as the
+[`api/openapi.yaml`](api/openapi.yaml) plus [`schemas/*.schema.json`](schemas/); treat those as the
 source of truth.
 
 ## Backends
@@ -176,18 +175,18 @@ source of truth.
 
 The runtime lives behind a `WorldModelBackend` protocol, so the API never changes when the engine
 does. The LeWorldModel code is **vendored** (no Hydra/gym/pygame research stack) into
-`lewm_model.py` and loads **only** from a trusted, checksum-verified package — never from a request
-payload (a deliberate security boundary).
+`lewm_model.py` and loads **only** from a trusted, checksum-verified package, never from a request
+payload. That is a deliberate security boundary.
 
 What the `lewm` backend actually does:
 
-- **Decodes `TensorRef` inputs** — `inline` / `base64` / `uri` (`file://` and `http(s)://` `.npy`).
-- **ImageNet preprocessing** — default `mean=[0.485,0.456,0.406]`, `std=[0.229,0.224,0.225]`,
-  `image_size=224`; `uint8` pixels are scaled `/255` then normalized; `HWC→CHW` when the last dim is 3.
-- **Inference under `torch.inference_mode()`** — `model.encode` / `rollout` / `get_cost` on a frozen model.
-- **A real CEM/MPC planner** — `plan` samples a Gaussian population (default `candidates=256`), scores
+- **Decodes `TensorRef` inputs**: `inline` / `base64` / `uri` (`file://` and `http(s)://` `.npy`).
+- **ImageNet preprocessing**: default `mean=[0.485,0.456,0.406]`, `std=[0.229,0.224,0.225]`,
+  `image_size=224`. `uint8` pixels are scaled `/255` then normalized, with `HWC→CHW` when the last dim is 3.
+- **Inference under `torch.inference_mode()`**: `model.encode` / `rollout` / `get_cost` on a frozen model.
+- **A real CEM/MPC planner.** `plan` samples a Gaussian population (default `candidates=256`), scores
   via `model.get_cost`, keeps the `elite_fraction` (default `0.1`, min 2 elites) for `iterations`
-  (default 5), `horizon` default 16. Requires a `goal` input and batch size 1; the population is
+  (default 5), `horizon` default 16. It requires a `goal` input and batch size 1; the population is
   seeded by `params.seed` via a `torch.Generator`.
 - **Spills large outputs.** Any output over `100_000` elements is written to the latent store as `.npy`
   and returned by `uri=file://...` (store dir from `WMCP_LATENT_STORE`, default `.artifacts/latents`).
@@ -215,8 +214,8 @@ weightless synthetic package for tests and demos.
 ### Add your own backend
 
 Implement the `WorldModelBackend` protocol (`encode`/`predict`/`rollout`/`score`/`plan`/`metadata`),
-load + freeze your model, and register it in `server.py:_make_backend()` — the API, routes, schemas,
-and metrics are inherited unchanged. See skill `runtime-backend`.
+load and freeze your model, then register it in `server.py:_make_backend()`. The API, routes, schemas,
+and metrics carry over unchanged. See skill `runtime-backend`.
 
 ## Architecture
 
@@ -276,7 +275,7 @@ context, and error mapping stay uniform. See [ADR-0001](adr/ADR-0001-inference-e
 
 > GPU gauges are populated best-effort on each `/metrics` scrape only if torch + CUDA are available;
 > the updater never raises. `wmcp_queue_wait_seconds` currently measures validation overhead, not real
-> queue wait — it becomes meaningful dynamic-batching queue time once Ray Serve lands (phase 2).
+> queue wait. It becomes meaningful dynamic-batching queue time once Ray Serve lands (phase 2).
 
 **Traces**: OTel spans exported over OTLP (set `WMCP_OTEL_EXPORTER_OTLP_ENDPOINT`), with W3C
 `traceparent` propagation.
@@ -332,7 +331,7 @@ The Compose stack (`deployment/docker-compose.yaml`) wires: `wmcp-jepa-service` 
 `dashboard` (`:8088`, nginx), `prometheus` (`:9090`), `otel-collector` (`:4317` gRPC / `:4318` HTTP /
 `:8889` exporter), `tempo` (`:3200`), and `grafana` (`:3000`).
 
-> **Heads up — the k8s/KServe manifests are templates, not turnkey.** `deployment/k8s/deployment.yaml`
+> **Heads up: the k8s/KServe manifests are templates, not turnkey.** `deployment/k8s/deployment.yaml`
 > uses a placeholder image (`ghcr.io/your-org/...`) and `deployment/k8s/kserve-inferenceservice.yaml`
 > references an aspirational `WMCP_BACKEND=ray-pytorch` / `WMCP_MODEL_PACKAGE_URI` that the current
 > code does **not** support (supported backends are `mock` | `lewm`; the env var is `WMCP_MODEL_PACKAGE`).
@@ -343,8 +342,8 @@ The Compose stack (`deployment/docker-compose.yaml`) wires: `wmcp-jepa-service` 
 `make demo-lewm-stress-test` layers a `stress-tester` service onto the LeWM stack: many concurrent
 workers submit a randomized mix of `score`/`plan`/`rollout`/`encode` with varied tensor shapes and a
 slice of intentionally-invalid requests, then print a latency-percentile summary (p50/p90/p95/p99,
-throughput, error rate) and exit while the rest of the stack stays up. Watch it land live on the
-dashboard (`:8088`) and Grafana (`:3000`).
+throughput, error rate) and exit while the rest of the stack stays up. You can watch it hit the
+dashboard (`:8088`) and Grafana (`:3000`) in real time.
 
 Everything is configurable via `WMCP_STRESS_*` env vars (defaults in parentheses); numeric knobs
 accept `auto` for a backend-aware default (lighter for the CPU `lewm` backend, heavier for `mock`):
@@ -365,8 +364,8 @@ WMCP_STRESS_TARGET_RPS=50 WMCP_STRESS_OPS=plan:3,score:1 make demo-lewm-stress-t
 | `WMCP_STRESS_{MIN,MAX}_CANDIDATES` · `_HORIZON` · `_ITERATIONS` | `auto` | per-request shape ranges |
 | `WMCP_STRESS_RAMP` · `_REPORT_INTERVAL` · `_SEED` · `_TIMEOUT` | `5` · `5` · `11` · `120` | ramp-up, log cadence, RNG seed, request timeout |
 
-Run it directly too (stdlib only): `python -m client.stress --concurrency 16 --duration 60` (flags
-override env). It also layers on the mock stack — add the overlay to a non-LeWM `docker compose up`.
+You can also run it directly (stdlib only): `python -m client.stress --concurrency 16 --duration 60`
+(flags override env). It layers on the mock stack too; add the overlay to a non-LeWM `docker compose up`.
 
 ## Develop
 
@@ -384,7 +383,7 @@ client/                  stdlib WMCP client + demo + HTML view + traffic + stres
 scripts/                 build_model_package.py · pin_sources.py · run_demo_local.sh
 deployment/              docker-compose*.yaml · prometheus · otel-collector · tempo · grafana · k8s/
 benchmarks/              run_benchmark.py harness + reports/
-api/ · schemas/          openapi.yaml + *.schema.json  (GATED — the public WMCP contract)
+api/ · schemas/          openapi.yaml + *.schema.json  (GATED: the public WMCP contract)
 adr/ · rfc/              architecture & RFC decision records (append-only via PR)
 ```
 
@@ -392,38 +391,38 @@ Stack: FastAPI · Pydantic v2 · PyTorch · Transformers · prometheus-client ·
 
 ## Roadmap
 
-- **Dynamic batching.** Ray Serve as the phase-2 serving core (per [ADR-0001](adr/ADR-0001-inference-engine.md)) —
-  real `wmcp_queue_wait_seconds`, batched compute, higher throughput.
+- **Dynamic batching.** Ray Serve as the phase-2 serving core (per [ADR-0001](adr/ADR-0001-inference-engine.md)),
+  for real `wmcp_queue_wait_seconds`, batched compute, and higher throughput.
 - **Golden numerical validation.** Land `tests/test_golden_lewm.py` (cost shape + numerical tolerance
-  vs upstream); then enable AMP / `torch.compile` for the `lewm` backend.
+  vs upstream), then enable AMP / `torch.compile` for the `lewm` backend.
 - **Real KServe path.** Promote the minimal V2 adapter to a first-class InferenceService and make the
   k8s manifests turnkey.
-- **Canonical WMCP fields.** Refactor envelope field names onto the upstream WMCP standard once its
-  RFC text is final.
+- **Canonical WMCP fields.** Rename envelope fields onto the upstream WMCP standard once its RFC text
+  is final.
 
 ## Contributing
 
-Contributions welcome. `make test`, `ruff check .`, and `mypy src` must pass; commits follow
+Contributions are welcome. `make test`, `ruff check .`, and `mypy src` must pass; commits follow
 [Conventional Commits](https://www.conventionalcommits.org/) (`feat(scope): …`, `fix(scope): …`). The
 wire contract (`schemas.py`, `api/openapi.yaml`, `schemas/*.schema.json`), `deployment/**`,
-`pyproject.toml` dependencies, and `adr/`+`rfc/` records are **gated** — change them only via PR with
+`pyproject.toml` dependencies, and `adr/`+`rfc/` records are gated; change them only via PR with
 explicit review, and keep the three contract artifacts in lockstep. See [Develop](#develop) for the
 local loop and the source-tree map.
 
 ## Security
 
-Model weights and model code are **never** loaded from a request body — only from a trusted,
-checksum-verified package on disk. This is a non-negotiable boundary. If you find a vulnerability,
-please report it privately via [GitHub Security Advisories](https://github.com/AbdelStark/zawarudo/security/advisories)
-or by contacting the maintainer — don't include exploit details in a public issue.
+Model weights and model code are never loaded from a request body, only from a trusted,
+checksum-verified package on disk. If you find a vulnerability, please report it privately via
+[GitHub Security Advisories](https://github.com/AbdelStark/zawarudo/security/advisories) or by
+contacting the maintainer, and please keep exploit details out of public issues.
 
 ## Status & scope
 
-**v0.1.0** — the API, observability, deployment surface, and a real `LeWMRuntime` are in place, but
+**v0.1.0.** The API, observability, deployment surface, and a real `LeWMRuntime` are in place, but
 this is an early service, not a hardened, production-scale deployment. Read the fine print before you
 build on it:
 
-- **WMCP is a working-draft schema.** The upstream WMCP RFC text was not available at design time;
+- **WMCP is a working-draft schema.** The upstream WMCP RFC text was not available at design time, so
   field names are designed to refactor into canonical fields once the standard lands. Don't treat the
   current envelope as final.
 - **The `mock` backend is the default.** It's the contract-test path and needs no GPU or weights. The
@@ -432,31 +431,31 @@ build on it:
   `dynamic_batching=false` and `wmcp_queue_wait_seconds` measures validation overhead, not real queue
   wait. This is not a high-throughput batched serving system today.
 - **The `lewm` backend is not yet golden-validated against upstream.** Numerical golden validation
-  (`tests/test_golden_lewm.py`) is pending; AMP/`torch.compile` stay off until it passes.
+  (`tests/test_golden_lewm.py`) is pending; AMP and `torch.compile` stay off until it passes.
 - **The KServe V2 adapter is minimal**, and the k8s/KServe manifests carry placeholder/aspirational
   values (see [Deploy](#deploy)).
-- **Weights load only from a trusted, checksum-verified package** — never from a request body (see
+- **Weights load only from a trusted, checksum-verified package**, never from a request body (see
   [Security](#security)).
 
 ## Credits & references
 
-- **WMCP** — the world-model inference contract this service implements:
+- **WMCP.** The world-model inference contract this service implements:
   [`rfc/0001-wmcp-world-model-inference.md`](rfc/0001-wmcp-world-model-inference.md) (plus RFCs
   [0002](rfc/0002-action-conditioned-rollout-api.md), [0003](rfc/0003-observability-telemetry.md),
   [0004](rfc/0004-model-packaging-runtime.md), [0005](rfc/0005-pusht-demo-profile.md)). Upstream
   standards effort: [world-modelers/wm-rfcs · WM-RFC-0001](https://github.com/world-modelers/wm-rfcs/blob/main/rfcs/WM-RFC-0001-wmcp.md).
-- **Engine decision** — [ADR-0001: inference engine](adr/ADR-0001-inference-engine.md) (Ray Serve +
+- **Engine decision.** [ADR-0001: inference engine](adr/ADR-0001-inference-engine.md) (Ray Serve +
   FastAPI + PyTorch; runtime behind the `WorldModelBackend` protocol).
-- **Checkpoint** — [`quentinll/lewm-pusht`](https://huggingface.co/quentinll/lewm-pusht) (Push-T LeWorldModel).
-- **Upstream model code** — [LeWorldModel (`le-wm`)](https://github.com/lucas-maes/le-wm) and
+- **Checkpoint.** [`quentinll/lewm-pusht`](https://huggingface.co/quentinll/lewm-pusht) (Push-T LeWorldModel).
+- **Upstream model code.** [LeWorldModel (`le-wm`)](https://github.com/lucas-maes/le-wm) and
   [`galilai-group/stable-worldmodel`](https://github.com/galilai-group/stable-worldmodel), vendored
   into `lewm_model.py` without the research stack.
-- **Repo** — [`github.com/AbdelStark/zawarudo`](https://github.com/AbdelStark/zawarudo).
+- **Repo.** [`github.com/AbdelStark/zawarudo`](https://github.com/AbdelStark/zawarudo).
 
 ## License
 
 This project does **not** currently declare a license (no `LICENSE` file, no `pyproject` license
 field). The vendored LeWorldModel code and the `quentinll/lewm-pusht` checkpoint are MIT-licensed
 upstream ([`galilai-group/stable-worldmodel`](https://github.com/galilai-group/stable-worldmodel)).
-Until a project license is added, treat the service code as all-rights-reserved and open an issue if
+Until a project license is added, treat the service code as all-rights-reserved, and open an issue if
 you need clarified terms.
