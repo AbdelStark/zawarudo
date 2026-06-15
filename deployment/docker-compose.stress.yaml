@@ -1,0 +1,44 @@
+# High-load stress overlay — adds a concurrent client-side stress tester to the demo stack.
+#
+#   make demo-lewm-stress-test
+#     docker compose -f docker-compose.yaml -f docker-compose.lewm.yaml -f docker-compose.stress.yaml up --build
+#
+# It layers cleanly on the mock stack too (drop the lewm overlay). The tester auto-detects the
+# backend and scales its default shapes/concurrency accordingly. Every knob is a WMCP_STRESS_* env
+# var (see client/stress.py); the numeric ones accept the literal `auto` for a backend-aware default.
+# The container runs for WMCP_STRESS_DURATION seconds, prints a latency-percentile summary, and exits
+# (restart: "no") — the rest of the stack stays up for inspection.
+services:
+  stress-tester:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+    image: wmcp-pusht-client:local
+    command: ["python", "-m", "client.stress"]
+    environment:
+      WMCP_BASE_URL: http://wmcp-jepa-service:8080
+      WMCP_MODEL_ID: lewm-pusht
+      # Load shape
+      WMCP_STRESS_CONCURRENCY: ${WMCP_STRESS_CONCURRENCY:-auto}   # workers; auto = mock 24 / lewm 8
+      WMCP_STRESS_DURATION: ${WMCP_STRESS_DURATION:-120}          # seconds (0 = until TOTAL / forever)
+      WMCP_STRESS_TOTAL: ${WMCP_STRESS_TOTAL:-0}                  # total request cap (0 = unbounded)
+      WMCP_STRESS_TARGET_RPS: ${WMCP_STRESS_TARGET_RPS:-0}        # aggregate throttle (0 = unthrottled)
+      WMCP_STRESS_RAMP: ${WMCP_STRESS_RAMP:-5}                    # seconds to ramp workers up
+      # Request variety
+      WMCP_STRESS_OPS: ${WMCP_STRESS_OPS:-score:4,plan:2,rollout:2,encode:1}
+      WMCP_STRESS_INVALID_RATIO: ${WMCP_STRESS_INVALID_RATIO:-0.02}
+      WMCP_STRESS_MIN_CANDIDATES: ${WMCP_STRESS_MIN_CANDIDATES:-auto}
+      WMCP_STRESS_MAX_CANDIDATES: ${WMCP_STRESS_MAX_CANDIDATES:-auto}
+      WMCP_STRESS_MIN_HORIZON: ${WMCP_STRESS_MIN_HORIZON:-auto}
+      WMCP_STRESS_MAX_HORIZON: ${WMCP_STRESS_MAX_HORIZON:-auto}
+      WMCP_STRESS_MIN_ITERATIONS: ${WMCP_STRESS_MIN_ITERATIONS:-auto}
+      WMCP_STRESS_MAX_ITERATIONS: ${WMCP_STRESS_MAX_ITERATIONS:-auto}
+      # Reporting / misc
+      WMCP_STRESS_REPORT_INTERVAL: ${WMCP_STRESS_REPORT_INTERVAL:-5}
+      WMCP_STRESS_SEED: ${WMCP_STRESS_SEED:-11}
+      WMCP_STRESS_TIMEOUT: ${WMCP_STRESS_TIMEOUT:-120}
+      WMCP_STRESS_REAL_PIXELS: "true"
+    depends_on:
+      wmcp-jepa-service:
+        condition: service_healthy
+    restart: "no"

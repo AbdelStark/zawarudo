@@ -139,12 +139,43 @@ reporting p50/p90/p95/p99, throughput, and error rate with full run context. Rep
 ## Deploy
 
 ```bash
-make demo            # docker compose: dashboard + traffic + client + backend + monitoring
-make demo-lewm       # same stack with the real LeWM backend on CPU
-make demo-gpu        # + NVIDIA device reservation
+make demo                   # docker compose: dashboard + traffic + client + backend + monitoring
+make demo-lewm              # same stack with the real LeWM backend on CPU
+make demo-gpu               # + NVIDIA device reservation
+make demo-lewm-stress-test  # real LeWM stack + a concurrent client-side stress tester
 kubectl apply -f deployment/k8s/deployment.yaml
 kubectl apply -f deployment/k8s/kserve-inferenceservice.yaml   # KServe InferenceService
 ```
+
+### Stress test
+
+`make demo-lewm-stress-test` layers a `stress-tester` service onto the LeWM stack: many concurrent
+workers submit a randomized mix of `score`/`plan`/`rollout`/`encode` with varied tensor shapes and a
+slice of intentionally-invalid requests, then print a latency-percentile summary (p50/p90/p95/p99,
+throughput, error rate) and exit while the rest of the stack stays up. Watch it land live on the
+dashboard (`:8088`) and Grafana (`:3000`).
+
+Everything is configurable via `WMCP_STRESS_*` env vars (defaults in parentheses); numeric knobs
+accept `auto` for a backend-aware default (lighter for the CPU `lewm` backend, heavier for `mock`):
+
+```bash
+WMCP_STRESS_CONCURRENCY=16 WMCP_STRESS_DURATION=300 make demo-lewm-stress-test   # heavier, 5 min
+WMCP_STRESS_TARGET_RPS=50 WMCP_STRESS_OPS=plan:3,score:1 make demo-lewm-stress-test
+```
+
+| Env var | Default | |
+|---|---|---|
+| `WMCP_STRESS_CONCURRENCY` | `auto` | concurrent workers (`mock` 24 / `lewm` 8) |
+| `WMCP_STRESS_DURATION` | `120` | seconds to run (`0` = until `TOTAL`, or forever) |
+| `WMCP_STRESS_TOTAL` | `0` | total request cap (`0` = unbounded) |
+| `WMCP_STRESS_TARGET_RPS` | `0` | aggregate throttle (`0` = unthrottled) |
+| `WMCP_STRESS_OPS` | `score:4,plan:2,rollout:2,encode:1` | weighted operation mix |
+| `WMCP_STRESS_INVALID_RATIO` | `0.02` | fraction of intentionally-invalid requests |
+| `WMCP_STRESS_{MIN,MAX}_CANDIDATES` · `_HORIZON` · `_ITERATIONS` | `auto` | per-request shape ranges |
+| `WMCP_STRESS_RAMP` · `_REPORT_INTERVAL` · `_SEED` · `_TIMEOUT` | `5` · `5` · `11` · `120` | ramp-up, log cadence, RNG seed, request timeout |
+
+Run it directly too (stdlib only): `python -m client.stress --concurrency 16 --duration 60` (flags
+override env). It also layers on the mock stack — add the overlay to a non-LeWM `docker compose up`.
 
 ## Develop
 
