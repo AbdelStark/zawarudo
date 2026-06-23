@@ -20,7 +20,7 @@
         </nav>
       </header>
 
-      <section class="status-band" aria-label="Service status" aria-live="polite">
+      <section id="status-band" class="status-band" aria-label="Service status" aria-live="polite" aria-atomic="false">
         <div class="status-item" id="readiness-item">
           <span class="label">Readiness</span>
           <strong id="ready-state">checking</strong>
@@ -40,9 +40,11 @@
         <button id="refresh-button" type="button" class="icon-button" title="Refresh status and metrics">Refresh</button>
       </section>
 
-      <p id="status-hint" class="status-hint" role="alert"></p>
+      <p id="status-hint" class="status-hint" role="status" aria-live="polite" aria-atomic="true"></p>
+      <p id="service-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+      <p id="metrics-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 
-      <section class="metrics-grid" aria-label="Prometheus summary">
+      <section id="metrics-grid" class="metrics-grid" aria-label="Prometheus summary" aria-busy="true">
         <article>
           <span>Total requests</span>
           <strong id="metric-total">0</strong>
@@ -78,7 +80,7 @@
       </section>
 
       <section class="dashboard-grid">
-        <section class="panel request-panel">
+        <section id="request-panel" class="panel request-panel">
           <div class="panel-heading">
             <h2>Send WMCP calls</h2>
             <span id="payload-mode" class="badge">uri pixels</span>
@@ -119,7 +121,7 @@
           <div class="button-row">
             <button id="send-button" type="button" class="primary" title="Send (⌘/Ctrl + Enter)">Send</button>
             <button id="batch-button" type="button">Run batch</button>
-            <button id="mix-button" type="button">Pregenerated mix</button>
+            <button id="mix-button" type="button">Run mix</button>
             <button id="live-button" type="button">Start stimulator</button>
             <button id="stop-button" type="button" disabled>Stop</button>
           </div>

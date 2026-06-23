@@ -12,9 +12,23 @@ const state = {
   logSeq: 0,
   pixelCache: new Map(),
   cancel: false,
+  serviceReachable: null,
+  metricsAvailable: null,
+  activeRunController: null,
+  lastServiceAnnouncement: "",
+  lastMetricsAnnouncement: "",
 };
 
 const els = {};
+
+const DEFAULT_BUTTON_LABELS = {
+  "refresh-button": "Refresh",
+  "send-button": "Send",
+  "batch-button": "Run batch",
+  "mix-button": "Run mix",
+  "live-button": "Start stimulator",
+  "stop-button": "Stop",
+};
 
 function $(id) {
   return document.getElementById(id);
@@ -28,12 +42,16 @@ function cssVar(name, fallback) {
 function initElements() {
   [
     "ready-state",
+    "status-band",
     "readiness-item",
     "status-hint",
+    "service-announcer",
     "backend-state",
     "model-state",
     "revision-state",
     "refresh-button",
+    "metrics-grid",
+    "metrics-announcer",
     "metric-total",
     "metric-rate",
     "metric-inflight",
@@ -43,6 +61,7 @@ function initElements() {
     "metric-queue",
     "metric-errors",
     "payload-mode",
+    "request-panel",
     "operation-select",
     "candidates-input",
     "horizon-input",
@@ -65,6 +84,49 @@ function initElements() {
   ].forEach((id) => {
     els[id] = $(id);
   });
+}
+
+function setButtonState(id, { disabled = false, busy = false, label = DEFAULT_BUTTON_LABELS[id] } = {}) {
+  const button = els[id];
+  button.disabled = disabled;
+  button.classList.toggle("is-busy", busy);
+  button.setAttribute("aria-busy", busy ? "true" : "false");
+  button.textContent = label;
+}
+
+function announce(id, message, key) {
+  if (!message || state[key] === message) return;
+  state[key] = message;
+  els[id].textContent = message;
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
+
+function beginRun(kind) {
+  if (state.activeRunController) return null;
+  state.cancel = false;
+  state.activeRunController = new AbortController();
+  els["request-panel"].setAttribute("aria-busy", "true");
+  setButtonState("send-button", { disabled: true });
+  setButtonState("batch-button", { disabled: true });
+  setButtonState("mix-button", { disabled: true });
+  setButtonState("live-button", { disabled: true, label: kind === "stimulator" ? "Stimulator on" : DEFAULT_BUTTON_LABELS["live-button"] });
+  setButtonState("stop-button", { disabled: false });
+  return state.activeRunController;
+}
+
+function endRun(controller) {
+  if (controller && state.activeRunController !== controller) return;
+  const stimulatorOn = Boolean(state.liveTimer);
+  state.activeRunController = null;
+  els["request-panel"].removeAttribute("aria-busy");
+  setButtonState("send-button");
+  setButtonState("batch-button", { disabled: stimulatorOn });
+  setButtonState("mix-button", { disabled: stimulatorOn });
+  setButtonState("live-button", { disabled: stimulatorOn, label: stimulatorOn ? "Stimulator on" : DEFAULT_BUTTON_LABELS["live-button"] });
+  setButtonState("stop-button", { disabled: !stimulatorOn });
 }
 
 function numberValue(id, fallback) {
@@ -293,7 +355,7 @@ async function refreshStatus() {
     els["backend-state"].textContent = state.backend;
     els["model-state"].textContent = metadata.model_id || MODEL_ID;
     els["revision-state"].textContent = metadata.model_revision || "unknown";
-    setServiceDown(false);
+    setServiceState(false);
     state.serviceReachable = true;
     // Only regenerate the editor payload when the backend actually changes, so the periodic
     // self-heal below never clobbers a payload the user is editing. The format (uri vs base64
@@ -304,7 +366,7 @@ async function refreshStatus() {
   } catch (error) {
     els["ready-state"].textContent = "unreachable";
     els["backend-state"].textContent = "unknown";
-    setServiceDown(true, error);
+    setServiceState(true, error);
     // Log only on the transition to unreachable, so the 5s poll doesn't spam the call log.
     if (state.serviceReachable !== false) {
       addLog("status", false, 0, error.body || { message: error.message });
@@ -313,17 +375,47 @@ async function refreshStatus() {
   }
 }
 
-function setServiceDown(down, error) {
+function setServiceState(down, error) {
+  const mockBackend = !down && state.backend === "mock";
+  els["status-band"].classList.toggle("is-down", down);
+  els["status-band"].classList.toggle("is-mock", mockBackend);
   els["readiness-item"].classList.toggle("is-down", down);
+  els["backend-state"].parentElement.classList.toggle("is-mock", mockBackend);
   const hint = els["status-hint"];
+  hint.classList.remove("is-error", "is-warning");
   if (down) {
     const reason = error?.message ? ` (${error.message})` : "";
     hint.textContent =
       `Service unreachable${reason}. Start the backend (\`make demo\`) or check WMCP_BACKEND, then Refresh.`;
-    hint.classList.add("visible");
+    hint.classList.add("visible", "is-error");
+    announce("service-announcer", "WMCP service unreachable. Start the backend or check WMCP_BACKEND.", "lastServiceAnnouncement");
+  } else if (mockBackend) {
+    const revision = els["revision-state"].textContent || "unknown";
+    const revisionLabel = revision === "mock" ? " / revision=mock" : ` / revision=${revision}`;
+    hint.textContent =
+      `backend=mock${revisionLabel} means synthetic demo responses. Use make demo-lewm for real checkpoint inference.`;
+    hint.classList.add("visible", "is-warning");
+    announce("service-announcer", "WMCP service ready with mock backend. Responses are synthetic.", "lastServiceAnnouncement");
   } else {
     hint.textContent = "";
     hint.classList.remove("visible");
+    announce("service-announcer", `WMCP service ready with backend ${state.backend}.`, "lastServiceAnnouncement");
+  }
+}
+
+function setMetricsState(available) {
+  const changed = state.metricsAvailable !== available;
+  state.metricsAvailable = available;
+  els["metrics-grid"].setAttribute("aria-busy", "false");
+  els["metrics-grid"].classList.toggle("is-stale", !available);
+  els["metrics-age"].classList.toggle("is-error", !available);
+  els["metrics-age"].classList.toggle("is-warning", false);
+  if (changed) {
+    announce(
+      "metrics-announcer",
+      available ? "Prometheus metrics available." : "Prometheus metrics unavailable.",
+      "lastMetricsAnnouncement",
+    );
   }
 }
 
@@ -433,6 +525,7 @@ function renderOperationTable(rows) {
 }
 
 async function refreshMetrics() {
+  els["metrics-grid"].setAttribute("aria-busy", "true");
   try {
     const [
       total,
@@ -482,6 +575,7 @@ async function refreshMetrics() {
     els["metric-queue"].textContent = formatSeconds(firstValue(queue));
     els["metric-errors"].textContent = formatCount(firstValue(errors));
     els["metrics-age"].textContent = new Date().toLocaleTimeString();
+    els["metrics-age"].classList.remove("is-error", "is-warning");
     drawSparkline(els["chart-rate"], rateSeries, cssVar("--teal", "#176f72"));
     drawSparkline(els["chart-latency"], latencySeries, cssVar("--clay", "#b45b42"));
     drawSparkline(els["chart-errors"], errorSeries, cssVar("--bad", "#b3384b"));
@@ -494,18 +588,21 @@ async function refreshMetrics() {
       vectorMap(candidatesByOperation, "operation", "candidates"),
       vectorMap(horizonByOperation, "operation", "horizon"),
     ));
+    setMetricsState(true);
   } catch (error) {
     els["metrics-age"].textContent = "metrics unavailable";
+    setMetricsState(false);
   }
 }
 
-async function postOperation(operation, payload) {
+async function postOperation(operation, payload, options = {}) {
   const requestBody = { ...payload, operation, model: MODEL_ID };
   const started = performance.now();
   const response = await fetchJson(`/api/wmcp/v1/models/${MODEL_ID}:${operation}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(requestBody),
+    signal: options.signal,
   });
   const elapsed = performance.now() - started;
   addLog(operation, true, elapsed, response, requestBody);
@@ -534,7 +631,7 @@ function renderLog() {
   if (state.log.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-log";
-    empty.textContent = "No calls yet.";
+    empty.textContent = "No WMCP calls recorded in this browser session.";
     container.appendChild(empty);
     return;
   }
@@ -691,9 +788,9 @@ function escapeHtml(value) {
 async function sendFromEditor() {
   const operation = els["operation-select"].value;
   const button = els["send-button"];
-  const label = button.textContent;
-  button.disabled = true;
-  button.textContent = "Sending…";
+  if (button.disabled) return;
+  setButtonState("send-button", { disabled: true, busy: true, label: "Sending..." });
+  els["request-panel"].setAttribute("aria-busy", "true");
   let payload = null;
   try {
     payload = JSON.parse(els["payload-editor"].value);
@@ -702,35 +799,41 @@ async function sendFromEditor() {
   } catch (error) {
     addLog(operation, false, 0, error.body || { message: error.message }, payload);
   } finally {
-    button.disabled = false;
-    button.textContent = label;
+    setButtonState("send-button");
+    if (!state.activeRunController) {
+      els["request-panel"].removeAttribute("aria-busy");
+    }
   }
 }
 
 async function runBatch() {
+  const controller = beginRun("batch");
+  if (!controller) return;
   const count = Math.max(1, Math.min(50, numberValue("batch-input", 6)));
   const operation = els["operation-select"].value;
   const baseSeed = numberValue("seed-input", 11);
-  state.cancel = false;
-  els["batch-button"].disabled = true;
-  els["live-button"].disabled = true;
-  els["stop-button"].disabled = false;
+  let completed = 0;
   try {
     for (let index = 0; index < count; index += 1) {
       if (state.cancel) break;
+      setButtonState("batch-button", { disabled: true, busy: true, label: `Batch ${index + 1}/${count}` });
       const payload = buildPayload(operation, { seed: baseSeed + index });
       try {
-        await postOperation(operation, payload);
+        await postOperation(operation, payload, { signal: controller.signal });
+        completed += 1;
       } catch (error) {
+        if (isAbortError(error)) {
+          addLog(operation, false, 0, {
+            code: "OPERATOR_STOP",
+            message: `Batch stopped by operator after ${completed} of ${count} calls.`,
+          }, payload);
+          break;
+        }
         addLog(operation, false, 0, error.body || { message: error.message }, payload);
       }
     }
   } finally {
-    els["batch-button"].disabled = false;
-    if (!state.liveTimer) {
-      els["live-button"].disabled = false;
-      els["stop-button"].disabled = true;
-    }
+    endRun(controller);
   }
   await refreshMetrics();
 }
@@ -752,14 +855,36 @@ function mixPayloads(seedOffset = 0) {
   ];
 }
 
-async function runPregeneratedMix(seedOffset = 0) {
-  for (const [operation, payload] of mixPayloads(seedOffset)) {
-    if (state.cancel) break;
-    try {
-      await postOperation(operation, payload);
-    } catch (error) {
-      addLog(operation, false, 0, error.body || { message: error.message }, payload);
+async function runPregeneratedMix(seedOffset = 0, options = {}) {
+  const kind = options.stimulator ? "stimulator" : "mix";
+  const controller = beginRun(kind);
+  if (!controller) return;
+  const payloads = mixPayloads(seedOffset);
+  let completed = 0;
+  try {
+    for (const [index, [operation, payload]] of payloads.entries()) {
+      if (state.cancel) break;
+      if (kind === "mix") {
+        setButtonState("mix-button", { disabled: true, busy: true, label: `Mix ${index + 1}/${payloads.length}` });
+      } else {
+        setButtonState("live-button", { disabled: true, busy: true, label: `Stimulating ${index + 1}/${payloads.length}` });
+      }
+      try {
+        await postOperation(operation, payload, { signal: controller.signal });
+        completed += 1;
+      } catch (error) {
+        if (isAbortError(error)) {
+          addLog(operation, false, 0, {
+            code: "OPERATOR_STOP",
+            message: `Traffic run stopped by operator after ${completed} of ${payloads.length} calls.`,
+          }, payload);
+          break;
+        }
+        addLog(operation, false, 0, error.body || { message: error.message }, payload);
+      }
     }
+  } finally {
+    endRun(controller);
   }
   await refreshMetrics();
 }
@@ -768,25 +893,33 @@ function startStimulator() {
   if (state.liveTimer) return;
   state.cancel = false;
   let tick = 0;
-  els["live-button"].disabled = true;
-  els["stop-button"].disabled = false;
+  setButtonState("batch-button", { disabled: true });
+  setButtonState("mix-button", { disabled: true });
+  setButtonState("live-button", { disabled: true, label: "Stimulator on" });
+  setButtonState("stop-button", { disabled: false });
   state.liveTimer = window.setInterval(() => {
     tick += 1;
-    runPregeneratedMix(tick * 10);
+    runPregeneratedMix(tick * 10, { stimulator: true });
   }, state.backend === "lewm" ? 9000 : 5000);
-  runPregeneratedMix(0);
+  runPregeneratedMix(0, { stimulator: true });
 }
 
 // Unified stop: cancels the stimulator interval and breaks any in-flight
 // batch / mix loop on its next iteration.
 function requestStop() {
   state.cancel = true;
+  if (state.activeRunController) {
+    state.activeRunController.abort();
+  }
   if (state.liveTimer) {
     window.clearInterval(state.liveTimer);
     state.liveTimer = null;
   }
-  els["live-button"].disabled = false;
-  els["stop-button"].disabled = true;
+  if (!state.activeRunController) {
+    endRun();
+  } else {
+    setButtonState("stop-button", { disabled: true, label: "Stopping..." });
+  }
 }
 
 function bindEvents() {
@@ -795,15 +928,17 @@ function bindEvents() {
     els[id].addEventListener("input", renderPayload);
   });
   els["refresh-button"].addEventListener("click", async () => {
-    await refreshStatus();
-    await refreshMetrics();
+    setButtonState("refresh-button", { disabled: true, busy: true, label: "Refreshing..." });
+    try {
+      await refreshStatus();
+      await refreshMetrics();
+    } finally {
+      setButtonState("refresh-button");
+    }
   });
   els["send-button"].addEventListener("click", sendFromEditor);
   els["batch-button"].addEventListener("click", runBatch);
-  els["mix-button"].addEventListener("click", () => {
-    state.cancel = false;
-    runPregeneratedMix(0);
-  });
+  els["mix-button"].addEventListener("click", () => runPregeneratedMix(0));
   els["live-button"].addEventListener("click", startStimulator);
   els["stop-button"].addEventListener("click", requestStop);
   els["payload-editor"].addEventListener("keydown", (event) => {
