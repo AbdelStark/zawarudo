@@ -9,25 +9,32 @@
   <body>
     <main class="shell">
       <header class="masthead">
-        <div>
+        <div class="masthead-id">
           <p class="eyebrow">WMCP operations console</p>
           <h1>LeWM serving telemetry</h1>
         </div>
-        <nav class="links" aria-label="Demo services">
-          <a href="http://localhost:3000/d/wmcp-ops/wmcp-lewm-operations" target="_blank" rel="noreferrer">Grafana ops</a>
-          <a href="http://localhost:3000/d/wmcp-traffic/wmcp-traffic-stimulator" target="_blank" rel="noreferrer">Grafana traffic</a>
-          <a href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
-        </nav>
+        <div class="masthead-meta">
+          <div id="livepulse" class="livepulse" data-state="idle" aria-hidden="true">
+            <span class="livepulse-dot"></span>
+            <span class="livepulse-label">Live</span>
+            <span class="livepulse-age" id="metrics-age">waiting</span>
+          </div>
+          <nav class="links" aria-label="Demo services">
+            <a href="http://localhost:3000/d/wmcp-ops/wmcp-lewm-operations" target="_blank" rel="noreferrer">Grafana ops</a>
+            <a href="http://localhost:3000/d/wmcp-traffic/wmcp-traffic-stimulator" target="_blank" rel="noreferrer">Grafana traffic</a>
+            <a href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
+          </nav>
+        </div>
       </header>
 
       <section id="status-band" class="status-band" aria-label="Service status" aria-live="polite" aria-atomic="false">
         <div class="status-item" id="readiness-item">
           <span class="label">Readiness</span>
-          <strong id="ready-state">checking</strong>
+          <strong id="ready-state"><span class="state-dot"></span>checking</strong>
         </div>
         <div class="status-item">
           <span class="label">Backend</span>
-          <strong id="backend-state">unknown</strong>
+          <strong id="backend-state"><span class="state-dot"></span>unknown</strong>
         </div>
         <div class="status-item">
           <span class="label">Model</span>
@@ -44,45 +51,116 @@
       <p id="service-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
       <p id="metrics-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 
-      <section id="metrics-grid" class="metrics-grid" aria-label="Prometheus summary" aria-busy="true">
-        <article>
-          <span>Total requests</span>
-          <strong id="metric-total">0</strong>
+      <section id="metrics-grid" class="kpi-rail" aria-label="Prometheus summary" aria-busy="true">
+        <article class="kpi kpi-live">
+          <span class="kpi-label">Current rate</span>
+          <strong class="kpi-value" id="metric-rate">0/s</strong>
+          <span class="kpi-sub"><svg class="kpi-spark" id="spark-rate" aria-hidden="true"></svg></span>
         </article>
-        <article>
-          <span>Current rate</span>
-          <strong id="metric-rate">0/s</strong>
+        <article class="kpi kpi-live">
+          <span class="kpi-label">p95 latency</span>
+          <strong class="kpi-value" id="metric-p95">n/a</strong>
+          <span class="kpi-sub"><svg class="kpi-spark" id="spark-p95" aria-hidden="true"></svg></span>
         </article>
-        <article>
-          <span>In flight</span>
-          <strong id="metric-inflight">0</strong>
+        <article class="kpi kpi-live">
+          <span class="kpi-label">Error rate</span>
+          <strong class="kpi-value" id="metric-error-rate">0/s</strong>
+          <span class="kpi-sub"><svg class="kpi-spark" id="spark-errors" aria-hidden="true"></svg></span>
         </article>
-        <article>
-          <span>Error rate</span>
-          <strong id="metric-error-rate">0/s</strong>
+        <article class="kpi kpi-live">
+          <span class="kpi-label">p95 compute</span>
+          <strong class="kpi-value" id="metric-compute">n/a</strong>
+          <span class="kpi-sub"><svg class="kpi-spark" id="spark-compute" aria-hidden="true"></svg></span>
         </article>
-        <article>
-          <span>p95 latency</span>
-          <strong id="metric-p95">n/a</strong>
+        <article class="kpi">
+          <span class="kpi-label">Total requests</span>
+          <strong class="kpi-value" id="metric-total">0</strong>
+          <span class="kpi-sub kpi-caption">15-min window</span>
         </article>
-        <article>
-          <span>p95 compute</span>
-          <strong id="metric-compute">n/a</strong>
+        <article class="kpi">
+          <span class="kpi-label">In flight</span>
+          <strong class="kpi-value" id="metric-inflight">0</strong>
+          <span class="kpi-sub kpi-caption">concurrent now</span>
         </article>
-        <article>
-          <span>p95 queue</span>
-          <strong id="metric-queue">n/a</strong>
+        <article class="kpi">
+          <span class="kpi-label">p95 queue</span>
+          <strong class="kpi-value" id="metric-queue">n/a</strong>
+          <span class="kpi-sub kpi-caption">wait before compute</span>
         </article>
-        <article>
-          <span>Validation errors</span>
-          <strong id="metric-errors">0</strong>
+        <article class="kpi">
+          <span class="kpi-label">Validation errors</span>
+          <strong class="kpi-value" id="metric-errors">0</strong>
+          <span class="kpi-sub kpi-caption">rejected · 15 min</span>
         </article>
       </section>
 
-      <section class="dashboard-grid">
+      <section class="telemetry" aria-label="Live telemetry charts">
+        <article class="chart-card chart-card--wide">
+          <header class="chart-head">
+            <div>
+              <h2>Throughput</h2>
+              <p class="chart-unit">requests · per second</p>
+            </div>
+            <span class="chart-now" id="now-rate">—</span>
+          </header>
+          <div class="chart-canvas" data-chart="rate">
+            <svg id="chart-rate" role="img" aria-label="Request rate over the last 15 minutes"></svg>
+            <div class="chart-tip" id="tip-rate" hidden></div>
+          </div>
+          <footer class="chart-foot" id="foot-rate"></footer>
+        </article>
+
+        <article class="chart-card chart-card--wide">
+          <header class="chart-head">
+            <div>
+              <h2>Latency percentiles</h2>
+              <p class="chart-unit">request latency · p50 · p95 · p99</p>
+            </div>
+            <span class="chart-now" id="now-latency">—</span>
+          </header>
+          <div class="chart-canvas" data-chart="latency">
+            <svg id="chart-latency" role="img" aria-label="Request latency percentiles over the last 15 minutes"></svg>
+            <div class="chart-tip" id="tip-latency" hidden></div>
+          </div>
+          <footer class="chart-foot chart-legend" id="legend-latency"></footer>
+        </article>
+
+        <article class="chart-card">
+          <header class="chart-head">
+            <div>
+              <h2>Error rate</h2>
+              <p class="chart-unit">errors · per second</p>
+            </div>
+            <span class="chart-now" id="now-errors">—</span>
+          </header>
+          <div class="chart-canvas" data-chart="errors">
+            <svg id="chart-errors" role="img" aria-label="Error rate over the last 15 minutes"></svg>
+            <div class="chart-tip" id="tip-errors" hidden></div>
+          </div>
+          <footer class="chart-foot" id="foot-errors"></footer>
+        </article>
+
+        <article class="chart-card chart-card--donut">
+          <header class="chart-head">
+            <div>
+              <h2>Request mix</h2>
+              <p class="chart-unit">share of live throughput</p>
+            </div>
+          </header>
+          <div class="donut-wrap">
+            <svg id="chart-composition" class="donut" role="img" aria-label="Share of live request rate by operation" viewBox="0 0 120 120"></svg>
+            <div class="donut-legend" id="composition-legend"></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="workbench">
         <section id="request-panel" class="panel request-panel">
           <div class="panel-heading">
-            <h2>Send WMCP calls</h2>
+            <div>
+              <h2>Request workbench</h2>
+              <p class="panel-sub">Drive the WMCP serving API directly.</p>
+            </div>
             <span id="payload-mode" class="badge">uri pixels</span>
           </div>
 
@@ -126,38 +204,31 @@
             <button id="stop-button" type="button" disabled>Stop</button>
           </div>
 
+          <label class="editor-label" for="payload-editor">Request envelope · editable JSON</label>
           <textarea id="payload-editor" spellcheck="false" aria-label="Request JSON"></textarea>
         </section>
 
-        <section class="panel chart-panel">
+        <section class="panel ops-panel">
           <div class="panel-heading">
-            <h2>Live service shape</h2>
-            <span id="metrics-age" class="badge">waiting</span>
-          </div>
-          <div class="chart-stack">
             <div>
-              <div class="chart-title">Request rate</div>
-              <svg id="chart-rate" viewBox="0 0 320 84" role="img" aria-label="Request rate sparkline"></svg>
+              <h2>Per-operation shape</h2>
+              <p class="panel-sub">Rate, latency and workload by WMCP operation.</p>
             </div>
-            <div>
-              <div class="chart-title">p95 latency</div>
-              <svg id="chart-latency" viewBox="0 0 320 84" role="img" aria-label="Latency sparkline"></svg>
-            </div>
-            <div>
-              <div class="chart-title">Error rate</div>
-              <svg id="chart-errors" viewBox="0 0 320 84" role="img" aria-label="Error rate sparkline"></svg>
-            </div>
+            <span id="ops-window" class="badge">5-min window</span>
           </div>
           <div id="operation-table" class="operation-table"></div>
         </section>
+      </section>
 
-        <section class="panel log-panel">
-          <div class="panel-heading">
+      <section class="panel log-panel">
+        <div class="panel-heading">
+          <div>
             <h2>Recent calls</h2>
-            <button id="clear-log-button" type="button">Clear</button>
+            <p class="panel-sub">Requests sent from this browser session.</p>
           </div>
-          <div id="response-log" class="response-log"></div>
-        </section>
+          <button id="clear-log-button" type="button">Clear</button>
+        </div>
+        <div id="response-log" class="response-log"></div>
       </section>
     </main>
     <script src="/app.js"></script>

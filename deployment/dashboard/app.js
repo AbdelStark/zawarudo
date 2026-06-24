@@ -3,23 +3,34 @@ const ACTION_DIM = 10;
 const IMAGE_SIZE = 224;
 const HISTORY = 3;
 
+const OP_COLORS = {
+  score: "--teal",
+  plan: "--olive",
+  rollout: "--clay",
+  encode: "--amber",
+};
+
 const state = {
   metadata: null,
   backend: "mock",
   liveTimer: null,
   metricsTimer: null,
+  ageTimer: null,
   log: [],
   logSeq: 0,
   pixelCache: new Map(),
   cancel: false,
   serviceReachable: null,
   metricsAvailable: null,
+  chartsReady: false,
+  lastMetricsAt: null,
   activeRunController: null,
   lastServiceAnnouncement: "",
   lastMetricsAnnouncement: "",
 };
 
 const els = {};
+const lineCharts = {};
 
 const DEFAULT_BUTTON_LABELS = {
   "refresh-button": "Refresh",
@@ -37,6 +48,15 @@ function $(id) {
 function cssVar(name, fallback) {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return value || fallback;
+}
+
+function colorFor(token, fallback) {
+  return cssVar(token, fallback);
+}
+
+function mix(token, withColor, amount, fallback) {
+  // color-mix resolved lazily by the browser is fine inline; build a string the CSS engine reads.
+  return `color-mix(in srgb, ${cssVar(token, fallback)}, ${withColor} ${amount}%)`;
 }
 
 function initElements() {
@@ -60,6 +80,19 @@ function initElements() {
     "metric-compute",
     "metric-queue",
     "metric-errors",
+    "spark-rate",
+    "spark-p95",
+    "spark-errors",
+    "spark-compute",
+    "livepulse",
+    "now-rate",
+    "now-latency",
+    "now-errors",
+    "foot-rate",
+    "foot-errors",
+    "legend-latency",
+    "chart-composition",
+    "composition-legend",
     "payload-mode",
     "request-panel",
     "operation-select",
@@ -158,11 +191,32 @@ function formatPerMinute(value) {
   return `${value.toFixed(1)}/min`;
 }
 
+function axisRate(value) {
+  return value < 1 ? value.toFixed(2) : value.toFixed(1);
+}
+
+function axisSeconds(value) {
+  return `${value.toFixed(2)}s`;
+}
+
 function formatWorkload(row) {
   const parts = [];
   if (Number.isFinite(row.candidates)) parts.push(`S${Math.round(row.candidates)}`);
   if (Number.isFinite(row.horizon)) parts.push(`T${Math.round(row.horizon)}`);
   return parts.length ? parts.join(" / ") : "n/a";
+}
+
+function formatClock(date) {
+  return date.toLocaleTimeString([], { hour12: false });
+}
+
+function formatAgo(date) {
+  if (!date) return "waiting";
+  const secs = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (secs < 2) return "just now";
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  return `${mins}m ${secs % 60}s ago`;
 }
 
 function requestId(operation, seed) {
@@ -351,8 +405,8 @@ async function refreshStatus() {
     const previousBackend = state.backend;
     state.metadata = metadata;
     state.backend = metadata.runtime?.backend || ready.backend || "mock";
-    els["ready-state"].textContent = ready.status || "ready";
-    els["backend-state"].textContent = state.backend;
+    setStateText(els["ready-state"], ready.status || "ready");
+    setStateText(els["backend-state"], state.backend);
     els["model-state"].textContent = metadata.model_id || MODEL_ID;
     els["revision-state"].textContent = metadata.model_revision || "unknown";
     setServiceState(false);
@@ -364,8 +418,8 @@ async function refreshStatus() {
       renderPayload();
     }
   } catch (error) {
-    els["ready-state"].textContent = "unreachable";
-    els["backend-state"].textContent = "unknown";
+    setStateText(els["ready-state"], "unreachable");
+    setStateText(els["backend-state"], "unknown");
     setServiceState(true, error);
     // Log only on the transition to unreachable, so the 5s poll doesn't spam the call log.
     if (state.serviceReachable !== false) {
@@ -375,12 +429,26 @@ async function refreshStatus() {
   }
 }
 
+function setLivepulse(stateName) {
+  els["livepulse"].dataset.state = stateName;
+}
+
+// Render a status value as a state dot + text. Built via DOM (not innerHTML) because the text can
+// come from the service response; this keeps server-supplied strings out of the HTML parser.
+function setStateText(el, text) {
+  el.replaceChildren();
+  const dot = document.createElement("span");
+  dot.className = "state-dot";
+  el.append(dot, document.createTextNode(text));
+}
+
 function setServiceState(down, error) {
   const mockBackend = !down && state.backend === "mock";
   els["status-band"].classList.toggle("is-down", down);
   els["status-band"].classList.toggle("is-mock", mockBackend);
   els["readiness-item"].classList.toggle("is-down", down);
   els["backend-state"].parentElement.classList.toggle("is-mock", mockBackend);
+  if (down) setLivepulse("down");
   const hint = els["status-hint"];
   hint.classList.remove("is-error", "is-warning");
   if (down) {
@@ -408,14 +476,30 @@ function setMetricsState(available) {
   state.metricsAvailable = available;
   els["metrics-grid"].setAttribute("aria-busy", "false");
   els["metrics-grid"].classList.toggle("is-stale", !available);
-  els["metrics-age"].classList.toggle("is-error", !available);
-  els["metrics-age"].classList.toggle("is-warning", false);
+  if (available) {
+    setLivepulse("live");
+  } else if (state.serviceReachable === false) {
+    setLivepulse("down");
+  } else {
+    setLivepulse("stale");
+  }
   if (changed) {
     announce(
       "metrics-announcer",
       available ? "Prometheus metrics available." : "Prometheus metrics unavailable.",
       "lastMetricsAnnouncement",
     );
+  }
+}
+
+function tickAge() {
+  const el = els["metrics-age"];
+  if (state.serviceReachable === false) {
+    el.textContent = "offline";
+  } else if (state.metricsAvailable === false) {
+    el.textContent = "no metrics";
+  } else {
+    el.textContent = formatAgo(state.lastMetricsAt);
   }
 }
 
@@ -464,67 +548,455 @@ function mergeMaps(...maps) {
   return merged;
 }
 
-function drawSparkline(svg, matrix, color = cssVar("--teal", "#176f72")) {
+// ----------------------------------------------------------------- charting
+
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function svgEl(tag, attrs = {}) {
+  const node = document.createElementNS(SVGNS, tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === null) continue;
+    node.setAttribute(key, String(value));
+  }
+  return node;
+}
+
+function extractSeries(matrix) {
   const series = matrix?.[0]?.values || [];
-  const values = series.map((point) => Number(point[1])).filter((value) => Number.isFinite(value));
+  return series
+    .map((point) => [Number(point[0]), Number(point[1])])
+    .filter(([t, v]) => Number.isFinite(t) && Number.isFinite(v));
+}
+
+// Monotone cubic interpolation (Fritsch–Carlson) over pixel-space points; returns an SVG path
+// that follows the data without the overshoot a naive cubic spline produces.
+function monotonePath(points) {
+  const n = points.length;
+  if (n === 0) return "";
+  if (n === 1) return `M${points[0][0]},${points[0][1]}`;
+  if (n === 2) return `M${points[0][0]},${points[0][1]} L${points[1][0]},${points[1][1]}`;
+
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  const dx = [];
+  const slope = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    const h = xs[i + 1] - xs[i] || 1e-6;
+    dx.push(h);
+    slope.push((ys[i + 1] - ys[i]) / h);
+  }
+  const m = new Array(n);
+  m[0] = slope[0];
+  m[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i += 1) {
+    if (slope[i - 1] * slope[i] <= 0) {
+      m[i] = 0;
+    } else {
+      m[i] = (slope[i - 1] + slope[i]) / 2;
+    }
+  }
+  for (let i = 0; i < n - 1; i += 1) {
+    if (slope[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+    } else {
+      const a = m[i] / slope[i];
+      const b = m[i + 1] / slope[i];
+      const s = a * a + b * b;
+      if (s > 9) {
+        const t = 3 / Math.sqrt(s);
+        m[i] = t * a * slope[i];
+        m[i + 1] = t * b * slope[i];
+      }
+    }
+  }
+  let d = `M${xs[0].toFixed(2)},${ys[0].toFixed(2)}`;
+  for (let i = 0; i < n - 1; i += 1) {
+    const c1x = xs[i] + dx[i] / 3;
+    const c1y = ys[i] + (m[i] * dx[i]) / 3;
+    const c2x = xs[i + 1] - dx[i] / 3;
+    const c2y = ys[i + 1] - (m[i + 1] * dx[i]) / 3;
+    d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${xs[i + 1].toFixed(2)},${ys[i + 1].toFixed(2)}`;
+  }
+  return d;
+}
+
+function niceTicks(min, max) {
+  if (!(max > min)) return [min];
+  const mid = (min + max) / 2;
+  return [max, mid, min];
+}
+
+function registerChart(id, config) {
+  const svg = els[id];
+  const canvas = svg.closest(".chart-canvas");
+  const entry = {
+    svg,
+    canvas,
+    tip: canvas.querySelector(".chart-tip"),
+    accent: config.accent,
+    accentToken: config.accentToken,
+    format: config.format,
+    axisFormat: config.axisFormat || config.format,
+    seriesDefs: config.series,
+    data: null,
+    geom: null,
+  };
+  svg.closest(".chart-card").dataset.accent = config.accentToken.replace("--", "");
+  lineCharts[id] = entry;
+  if (canvas) {
+    canvas.addEventListener("pointermove", (event) => onChartHover(entry, event));
+    canvas.addEventListener("pointerleave", () => hideChartHover(entry));
+  }
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => renderLineChart(entry));
+    ro.observe(svg);
+  }
+  return entry;
+}
+
+function setLineChart(id, seriesData) {
+  const entry = lineCharts[id];
+  if (!entry) return;
+  entry.data = seriesData;
+  renderLineChart(entry);
+}
+
+function chartEmpty(svg, W, H, message) {
   svg.replaceChildren();
-  if (values.length < 2) {
-    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    text.setAttribute("x", "18");
-    text.setAttribute("y", "48");
-    text.setAttribute("fill", cssVar("--muted", "#687068"));
-    text.textContent = "waiting for samples";
-    svg.appendChild(text);
+  const text = svgEl("text", { x: W / 2, y: H / 2 + 4, "text-anchor": "middle", class: "c-empty" });
+  text.textContent = message;
+  svg.appendChild(text);
+}
+
+function renderLineChart(entry) {
+  const { svg } = entry;
+  const rect = svg.getBoundingClientRect();
+  const W = Math.max(Math.round(rect.width) || 600, 160);
+  const H = Math.max(Math.round(rect.height) || 180, 90);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+
+  const data = entry.data;
+  const series = (data || []).map((s, index) => ({ ...entry.seriesDefs[index], points: s }));
+  const primary = series.find((s) => s.primary) || series[0];
+  if (!primary || primary.points.length < 2) {
+    entry.geom = null;
+    chartEmpty(svg, W, H, "waiting for samples");
     return;
   }
-  const width = 320;
-  const height = 84;
-  const pad = 10;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = Math.max(max - min, 0.000001);
-  const points = values.map((value, index) => {
-    const x = pad + (index / (values.length - 1)) * (width - pad * 2);
-    const y = height - pad - ((value - min) / span) * (height - pad * 2);
-    return [x, y];
+
+  const pad = { l: 44, r: 12, t: 14, b: 17 };
+  const allValues = [];
+  let tMin = Infinity;
+  let tMax = -Infinity;
+  series.forEach((s) => s.points.forEach(([t, v]) => {
+    allValues.push(v);
+    if (t < tMin) tMin = t;
+    if (t > tMax) tMax = t;
+  }));
+  let yMin = Math.min(...allValues);
+  let yMax = Math.max(...allValues);
+  const span = yMax - yMin || Math.abs(yMax) || 1;
+  yMax += span * 0.18;
+  yMin = Math.max(0, yMin - span * 0.18);
+  if (yMax === yMin) yMax = yMin + 1;
+  const tSpan = tMax - tMin || 1;
+
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+  const xScale = (t) => pad.l + ((t - tMin) / tSpan) * plotW;
+  const yScale = (v) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * plotH;
+
+  const frag = document.createDocumentFragment();
+
+  // gridlines + y-axis labels
+  niceTicks(yMin, yMax).forEach((tick, index) => {
+    const y = yScale(tick);
+    frag.appendChild(svgEl("line", {
+      x1: pad.l, x2: W - pad.r, y1: y, y2: y,
+      class: index === 2 ? "c-grid-base" : "c-grid",
+    }));
+    const label = svgEl("text", { x: pad.l - 8, y: y + 3, "text-anchor": "end", class: "c-axis-label" });
+    label.textContent = entry.axisFormat(tick);
+    frag.appendChild(label);
   });
-  const line = points.map((point, index) => `${index === 0 ? "M" : "L"}${point[0].toFixed(2)},${point[1].toFixed(2)}`).join(" ");
-  const area = `${line} L${points[points.length - 1][0].toFixed(2)},${height - pad} L${points[0][0].toFixed(2)},${height - pad} Z`;
-  const areaPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  areaPath.setAttribute("class", "spark-area");
-  areaPath.setAttribute("d", area);
-  const linePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  linePath.setAttribute("class", "spark-line");
-  linePath.setAttribute("d", line);
-  linePath.setAttribute("stroke", color);
-  svg.append(areaPath, linePath);
+
+  // x-axis time hints
+  const spanMin = Math.round(tSpan / 60);
+  const leftTick = svgEl("text", { x: pad.l, y: H - 5, "text-anchor": "start", class: "c-axis-label" });
+  leftTick.textContent = spanMin >= 1 ? `-${spanMin}m` : "";
+  const rightTick = svgEl("text", { x: W - pad.r, y: H - 5, "text-anchor": "end", class: "c-axis-label" });
+  rightTick.textContent = "now";
+  frag.append(leftTick, rightTick);
+
+  // area for primary series
+  const primaryPts = primary.points.map(([t, v]) => [xScale(t), yScale(v)]);
+  const baseY = yScale(yMin);
+  const linePath = monotonePath(primaryPts);
+  const areaPath = `${linePath} L${primaryPts[primaryPts.length - 1][0].toFixed(2)},${baseY.toFixed(2)} L${primaryPts[0][0].toFixed(2)},${baseY.toFixed(2)} Z`;
+  const accent = cssVar(entry.accentToken, entry.accent);
+  frag.appendChild(svgEl("path", {
+    class: "c-area", d: areaPath,
+    fill: `color-mix(in srgb, ${accent}, transparent 84%)`,
+  }));
+
+  // secondary lines (drawn under the primary)
+  series.forEach((s) => {
+    if (s.primary) return;
+    const pts = s.points.map(([t, v]) => [xScale(t), yScale(v)]);
+    frag.appendChild(svgEl("path", {
+      class: `c-line ${s.cls || "c-line--ghost"}`,
+      d: monotonePath(pts),
+      stroke: cssVar(s.colorToken, s.color),
+    }));
+  });
+
+  // primary line
+  frag.appendChild(svgEl("path", { class: "c-line", d: linePath, stroke: accent }));
+
+  // live leading-edge dot + halo
+  const last = primaryPts[primaryPts.length - 1];
+  frag.appendChild(svgEl("circle", { class: "c-dot-halo live-halo", cx: last[0], cy: last[1], r: 4, fill: accent }));
+  frag.appendChild(svgEl("circle", { class: "c-dot", cx: last[0], cy: last[1], r: 3.4, fill: accent }));
+
+  const overlay = svgEl("g", { class: "c-overlay" });
+
+  svg.replaceChildren(frag, overlay);
+
+  // geometry for hover
+  const samples = primary.points.map(([t], i) => ({
+    x: primaryPts[i][0],
+    y: primaryPts[i][1],
+    t,
+    vals: series.map((s) => ({
+      label: s.label,
+      color: cssVar(s.colorToken || entry.accentToken, s.color || entry.accent),
+      v: s.points[i] ? s.points[i][1] : undefined,
+      y: s.points[i] ? yScale(s.points[i][1]) : undefined,
+    })),
+  }));
+  entry.geom = { samples, pad, W, H, overlay, multi: series.length > 1 };
+}
+
+function onChartHover(entry, event) {
+  const geom = entry.geom;
+  if (!geom || !geom.samples.length) return;
+  const rect = entry.svg.getBoundingClientRect();
+  const scaleX = geom.W / rect.width;
+  const px = (event.clientX - rect.left) * scaleX;
+  let best = geom.samples[0];
+  let bestDist = Infinity;
+  for (const sample of geom.samples) {
+    const dist = Math.abs(sample.x - px);
+    if (dist < bestDist) { bestDist = dist; best = sample; }
+  }
+  const o = geom.overlay;
+  o.replaceChildren();
+  o.appendChild(svgEl("line", { class: "c-crosshair", x1: best.x, x2: best.x, y1: geom.pad.t, y2: geom.H - geom.pad.b }));
+  best.vals.forEach((val) => {
+    if (val.y === undefined) return;
+    o.appendChild(svgEl("circle", { class: "c-marker", cx: best.x, cy: val.y, r: 3, fill: val.color }));
+  });
+
+  const tip = entry.tip;
+  const time = new Date(best.t * 1000);
+  const rows = best.vals
+    .filter((val) => val.v !== undefined)
+    .map((val) => geom.multi
+      ? `<div class="tip-row"><span class="tip-swatch" style="background:${val.color}"></span>${val.label} <b>${entry.format(val.v)}</b></div>`
+      : `<div class="tip-row"><b>${entry.format(val.v)}</b></div>`)
+    .join("");
+  tip.innerHTML = `<div class="tip-time">${formatClock(time)}</div>${rows}`;
+  tip.hidden = false;
+  const leftPx = best.x / scaleX;
+  const topPx = (geom.multi ? geom.pad.t : best.y) / (geom.H / rect.height);
+  tip.style.left = `${Math.max(6, Math.min(rect.width - 6, leftPx))}px`;
+  tip.style.top = `${topPx}px`;
+}
+
+function hideChartHover(entry) {
+  if (entry.geom?.overlay) entry.geom.overlay.replaceChildren();
+  if (entry.tip) entry.tip.hidden = true;
+}
+
+function drawMicroSpark(svg, values, accentToken) {
+  if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const W = Math.max(Math.round(rect.width) || 120, 40);
+  const H = Math.max(Math.round(rect.height) || 26, 16);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  if (values.length < 2) {
+    svg.replaceChildren();
+    return;
+  }
+  const pad = 3;
+  const ys = values.map((p) => p[1]);
+  let min = Math.min(...ys);
+  let max = Math.max(...ys);
+  const span = max - min || Math.abs(max) || 1;
+  min -= span * 0.12;
+  max += span * 0.12;
+  const pts = values.map(([, v], i) => [
+    pad + (i / (values.length - 1)) * (W - pad * 2),
+    H - pad - ((v - min) / (max - min)) * (H - pad * 2),
+  ]);
+  const line = monotonePath(pts);
+  const color = mix(accentToken, "white", 32, "#9fc");
+  const area = `${line} L${pts[pts.length - 1][0].toFixed(2)},${H - pad} L${pts[0][0].toFixed(2)},${H - pad} Z`;
+  const frag = document.createDocumentFragment();
+  frag.appendChild(svgEl("path", { d: area, fill: `color-mix(in srgb, ${cssVar(accentToken, "#9fc")}, transparent 80%)`, stroke: "none" }));
+  frag.appendChild(svgEl("path", { d: line, fill: "none", stroke: color, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+  frag.appendChild(svgEl("circle", { cx: pts[pts.length - 1][0], cy: pts[pts.length - 1][1], r: 2, fill: color }));
+  svg.replaceChildren(frag);
+}
+
+const SPARK_TOKENS = {
+  "spark-rate": "--teal",
+  "spark-p95": "--clay",
+  "spark-errors": "--bad",
+  "spark-compute": "--moss",
+};
+const sparkData = {};
+
+function setMicroSpark(id, values) {
+  sparkData[id] = values;
+  drawMicroSpark(els[id], values, SPARK_TOKENS[id]);
+}
+
+// Repaint micro-sparklines on container resize (they use preserveAspectRatio="none", so a width
+// change between 5s polls would otherwise stretch the cached path until the next poll).
+function initSparks() {
+  if (typeof ResizeObserver === "undefined") return;
+  Object.keys(SPARK_TOKENS).forEach((id) => {
+    const svg = els[id];
+    if (!svg) return;
+    new ResizeObserver(() => drawMicroSpark(svg, sparkData[id] || [], SPARK_TOKENS[id])).observe(svg);
+  });
+}
+
+function seriesStats(values) {
+  const v = values.map((p) => p[1]).filter(Number.isFinite);
+  if (!v.length) return null;
+  return {
+    min: Math.min(...v),
+    max: Math.max(...v),
+    avg: v.reduce((a, b) => a + b, 0) / v.length,
+  };
+}
+
+function renderFoot(el, stats, format) {
+  if (!el) return;
+  if (!stats) { el.replaceChildren(); return; }
+  el.innerHTML = `
+    <span class="stat">min <b>${format(stats.min)}</b></span>
+    <span class="stat">avg <b>${format(stats.avg)}</b></span>
+    <span class="stat">peak <b>${format(stats.max)}</b></span>`;
+}
+
+function drawDonut(rows) {
+  const svg = els["chart-composition"];
+  const legend = els["composition-legend"];
+  const entries = ["score", "plan", "rollout", "encode"]
+    .map((op) => ({ op, rate: Math.max(0, rows.get(op)?.rate || 0) }))
+    .filter((item) => item.rate > 0)
+    .sort((a, b) => b.rate - a.rate);
+  const total = entries.reduce((sum, item) => sum + item.rate, 0);
+
+  svg.replaceChildren();
+  const cx = 60;
+  const cy = 60;
+  const r = 44;
+  const C = 2 * Math.PI * r;
+  svg.appendChild(svgEl("circle", { class: "donut-track", cx, cy, r }));
+
+  if (total > 0) {
+    const group = svgEl("g", { transform: `rotate(-90 ${cx} ${cy})` });
+    const gap = entries.length > 1 ? 2 : 0;
+    let acc = 0;
+    entries.forEach((item) => {
+      const frac = item.rate / total;
+      const drawLen = Math.max(frac * C - gap, 0.5);
+      const seg = svgEl("circle", {
+        class: "donut-seg",
+        cx, cy, r,
+        stroke: cssVar(OP_COLORS[item.op], "#176f72"),
+        "stroke-dasharray": `${drawLen.toFixed(2)} ${(C - drawLen).toFixed(2)}`,
+        "stroke-dashoffset": `${(-acc).toFixed(2)}`,
+      });
+      group.appendChild(seg);
+      acc += frac * C;
+    });
+    svg.appendChild(group);
+  }
+
+  const totalText = svgEl("text", { class: "donut-total", x: cx, y: cy + 1 });
+  totalText.textContent = total > 0 ? total.toFixed(total < 10 ? 1 : 0) : "0.0";
+  const totalLabel = svgEl("text", { class: "donut-total-label", x: cx, y: cy + 13 });
+  totalLabel.textContent = "req/s";
+  svg.append(totalText, totalLabel);
+
+  legend.replaceChildren();
+  if (total <= 0) {
+    const empty = document.createElement("div");
+    empty.className = "donut-empty";
+    empty.textContent = "No live traffic. Run a mix or start the stimulator.";
+    legend.appendChild(empty);
+    return;
+  }
+  entries.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "donut-row";
+    const pct = Math.round((item.rate / total) * 100);
+    row.innerHTML = `
+      <span class="swatch" style="background:${cssVar(OP_COLORS[item.op], "#176f72")}"></span>
+      <span class="op">${item.op}</span>
+      <span class="pct">${formatRate(item.rate)} · ${pct}%</span>`;
+    legend.appendChild(row);
+  });
 }
 
 function renderOperationTable(rows) {
   const container = els["operation-table"];
   container.replaceChildren();
   const header = document.createElement("div");
-  header.className = "op-row";
-  header.innerHTML = "<span>Operation</span><span>Rate</span><span>Error</span><span>p95</span><span>compute</span><span>queue</span><span>workload</span>";
+  header.className = "op-row op-head";
+  header.innerHTML =
+    "<span>Operation</span><span>Rate</span><span>Error</span><span>p95</span><span>compute</span><span>queue</span><span>workload</span>";
   container.appendChild(header);
-  ["score", "plan", "rollout", "encode"].forEach((operation) => {
+
+  const ops = ["score", "plan", "rollout", "encode"];
+  const maxRate = Math.max(0.0001, ...ops.map((op) => rows.get(op)?.rate || 0));
+
+  ops.forEach((operation) => {
     const row = rows.get(operation) || {};
+    const rate = row.rate || 0;
+    const errorRate = row.errorRate || 0;
+    const barPct = Math.max(2, Math.round((rate / maxRate) * 100));
     const element = document.createElement("div");
-    element.className = "op-row";
+    element.className = `op-row op-data${rate > 0 ? "" : " is-quiet"}`;
     element.innerHTML = `
-      <strong>${operation}</strong>
-      <span>${formatPerMinute((row.rate || 0) * 60)}</span>
-      <span>${formatPerMinute((row.errorRate || 0) * 60)}</span>
-      <span>${formatSeconds(row.latency)}</span>
-      <span>${formatSeconds(row.compute)}</span>
-      <span>${formatSeconds(row.queue)}</span>
-      <span>${formatWorkload(row)}</span>
+      <span class="op-name">${operation}<span class="op-bar"><i style="width:${barPct}%;background:${cssVar(OP_COLORS[operation], "#176f72")}"></i></span></span>
+      <span class="num">${formatPerMinute(rate * 60)}</span>
+      <span class="${errorRate > 0 ? "error" : "muted"}">${formatPerMinute(errorRate * 60)}</span>
+      <span class="num">${formatSeconds(row.latency)}</span>
+      <span class="num">${formatSeconds(row.compute)}</span>
+      <span class="num">${formatSeconds(row.queue)}</span>
+      <span class="muted">${formatWorkload(row)}</span>
     `;
     container.appendChild(element);
   });
 }
 
+function setChartsLoading(loading) {
+  document.querySelectorAll(".chart-canvas").forEach((canvas) => {
+    canvas.classList.toggle("is-loading", loading);
+  });
+}
+
 async function refreshMetrics() {
+  if (!state.chartsReady) setChartsLoading(true);
   els["metrics-grid"].setAttribute("aria-busy", "true");
   try {
     const [
@@ -544,7 +1016,10 @@ async function refreshMetrics() {
       candidatesByOperation,
       horizonByOperation,
       rateSeries,
+      latencyP50Series,
       latencySeries,
+      latencyP99Series,
+      computeSeries,
       errorSeries,
     ] = await Promise.all([
       promQuery("sum(increase(wmcp_requests_total[15m]))"),
@@ -555,7 +1030,7 @@ async function refreshMetrics() {
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_queue_wait_seconds_bucket[5m])) by (le))"),
-      promQuery("sum(rate(wmcp_requests_total[2m])) by (operation)"),
+      promQuery("sum(rate(wmcp_requests_total[5m])) by (operation)"),
       promQuery("sum(rate(wmcp_request_errors_total[5m])) by (operation)"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le, operation))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le, operation))"),
@@ -563,23 +1038,52 @@ async function refreshMetrics() {
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_candidate_count_bucket[5m])) by (le, operation))"),
       promQuery("histogram_quantile(0.95, sum(rate(wmcp_rollout_horizon_bucket[5m])) by (le, operation))"),
       promRange("sum(rate(wmcp_requests_total[1m]))"),
+      promRange("histogram_quantile(0.50, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le))"),
       promRange("histogram_quantile(0.95, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le))"),
+      promRange("histogram_quantile(0.99, sum(rate(wmcp_request_latency_seconds_bucket[5m])) by (le))"),
+      promRange("histogram_quantile(0.95, sum(rate(wmcp_model_compute_seconds_bucket[5m])) by (le))"),
       promRange("sum(rate(wmcp_request_errors_total[1m])) OR on() vector(0)"),
     ]);
+
+    const rateNow = firstValue(rate);
+    const p95Now = firstValue(p95);
+    const errorNow = firstValue(errorRate);
+    const computeNow = firstValue(compute);
+
     els["metric-total"].textContent = formatCount(firstValue(total));
-    els["metric-rate"].textContent = formatRate(firstValue(rate));
+    els["metric-rate"].textContent = formatRate(rateNow);
     els["metric-inflight"].textContent = formatCount(firstValue(inflight));
-    els["metric-error-rate"].textContent = formatRate(firstValue(errorRate));
-    els["metric-p95"].textContent = formatSeconds(firstValue(p95));
-    els["metric-compute"].textContent = formatSeconds(firstValue(compute));
+    els["metric-error-rate"].textContent = formatRate(errorNow);
+    els["metric-p95"].textContent = formatSeconds(p95Now);
+    els["metric-compute"].textContent = formatSeconds(computeNow);
     els["metric-queue"].textContent = formatSeconds(firstValue(queue));
     els["metric-errors"].textContent = formatCount(firstValue(errors));
-    els["metrics-age"].textContent = new Date().toLocaleTimeString();
-    els["metrics-age"].classList.remove("is-error", "is-warning");
-    drawSparkline(els["chart-rate"], rateSeries, cssVar("--teal", "#176f72"));
-    drawSparkline(els["chart-latency"], latencySeries, cssVar("--clay", "#b45b42"));
-    drawSparkline(els["chart-errors"], errorSeries, cssVar("--bad", "#b3384b"));
-    renderOperationTable(mergeMaps(
+
+    els["now-rate"].textContent = formatRate(rateNow);
+    els["now-latency"].textContent = formatSeconds(p95Now);
+    els["now-errors"].textContent = formatRate(errorNow);
+
+    const rateValues = extractSeries(rateSeries);
+    const p50Values = extractSeries(latencyP50Series);
+    const p95Values = extractSeries(latencySeries);
+    const p99Values = extractSeries(latencyP99Series);
+    const computeValues = extractSeries(computeSeries);
+    const errorValues = extractSeries(errorSeries);
+
+    setLineChart("chart-rate", [rateValues]);
+    setLineChart("chart-latency", [p50Values, p95Values, p99Values]);
+    setLineChart("chart-errors", [errorValues]);
+
+    renderFoot(els["foot-rate"], seriesStats(rateValues), formatRate);
+    renderFoot(els["foot-errors"], seriesStats(errorValues), formatRate);
+    renderLatencyLegend();
+
+    setMicroSpark("spark-rate", rateValues);
+    setMicroSpark("spark-p95", p95Values);
+    setMicroSpark("spark-errors", errorValues);
+    setMicroSpark("spark-compute", computeValues);
+
+    const opRows = mergeMaps(
       vectorMap(rateByOperation, "operation", "rate"),
       vectorMap(errorsByOperation, "operation", "errorRate"),
       vectorMap(p95ByOperation, "operation", "latency"),
@@ -587,12 +1091,29 @@ async function refreshMetrics() {
       vectorMap(queueByOperation, "operation", "queue"),
       vectorMap(candidatesByOperation, "operation", "candidates"),
       vectorMap(horizonByOperation, "operation", "horizon"),
-    ));
+    );
+    renderOperationTable(opRows);
+    drawDonut(opRows);
+
+    state.lastMetricsAt = new Date();
+    state.chartsReady = true;
+    setChartsLoading(false);
+    tickAge();
     setMetricsState(true);
   } catch (error) {
-    els["metrics-age"].textContent = "metrics unavailable";
+    setChartsLoading(false);
     setMetricsState(false);
+    tickAge();
   }
+}
+
+function renderLatencyLegend() {
+  const el = els["legend-latency"];
+  if (!el) return;
+  el.innerHTML = `
+    <span class="legend-item"><span class="legend-swatch" style="background:${cssVar("--moss", "#7b9652")}"></span>p50</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:${cssVar("--clay", "#b45b42")}"></span>p95</span>
+    <span class="legend-item" style="color:${cssVar("--muted", "#687068")}"><span class="legend-swatch is-dashed"></span>p99</span>`;
 }
 
 async function postOperation(operation, payload, options = {}) {
@@ -631,7 +1152,7 @@ function renderLog() {
   if (state.log.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-log";
-    empty.textContent = "No WMCP calls recorded in this browser session.";
+    empty.textContent = "No WMCP calls recorded in this browser session yet — send one from the workbench.";
     container.appendChild(empty);
     return;
   }
@@ -646,9 +1167,9 @@ function createLogEntry(entry) {
   const hasRequest = entry.request != null;
   details.innerHTML = `
     <summary>
-      <span class="${statusClass}">${entry.ok ? "ok" : "error"}</span>
-      <span>${entry.operation}</span>
-      <span class="log-meta">${formatSeconds(entry.elapsed / 1000)} · ${entry.at.toLocaleTimeString()}</span>
+      <span class="log-status ${statusClass}">${entry.ok ? "ok" : "error"}</span>
+      <span class="log-op">${entry.operation}</span>
+      <span class="log-meta">${formatSeconds(entry.elapsed / 1000)} · ${formatClock(entry.at)}</span>
     </summary>
     <div class="log-detail">
       <div class="log-toolbar">
@@ -954,11 +1475,42 @@ function bindEvents() {
   });
 }
 
+function initCharts() {
+  registerChart("chart-rate", {
+    accentToken: "--teal",
+    accent: "#176f72",
+    format: formatRate,
+    axisFormat: axisRate,
+    series: [{ primary: true, label: "rate", colorToken: "--teal" }],
+  });
+  registerChart("chart-latency", {
+    accentToken: "--clay",
+    accent: "#b45b42",
+    format: formatSeconds,
+    axisFormat: axisSeconds,
+    series: [
+      { label: "p50", colorToken: "--moss", cls: "c-line--ghost" },
+      { primary: true, label: "p95", colorToken: "--clay" },
+      { label: "p99", colorToken: "--ink", cls: "c-line--faint" },
+    ],
+  });
+  registerChart("chart-errors", {
+    accentToken: "--bad",
+    accent: "#b3384b",
+    format: formatRate,
+    axisFormat: axisRate,
+    series: [{ primary: true, label: "errors", colorToken: "--bad" }],
+  });
+}
+
 async function boot() {
   initElements();
+  initCharts();
+  initSparks();
   bindEvents();
   renderLog();
   renderPayload();
+  setChartsLoading(true);
   await refreshStatus();
   await refreshMetrics();
   // Re-detect status (backend, readiness) alongside metrics so a `state.backend` that was stuck
@@ -968,6 +1520,7 @@ async function boot() {
     refreshMetrics();
     refreshStatus();
   }, 5000);
+  state.ageTimer = window.setInterval(tickAge, 1000);
 }
 
 boot();
